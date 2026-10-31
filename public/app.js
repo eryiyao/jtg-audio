@@ -21,6 +21,25 @@ const timeCurrent = document.getElementById('time-current');
 const timeTotal = document.getElementById('time-total');
 const playerError = document.getElementById('player-error');
 const audio = document.getElementById('audio');
+const uploadDialog = document.getElementById('upload-dialog');
+const closeUpload = document.getElementById('close-upload');
+const speedEl = document.getElementById('speed');
+
+for (const button of document.querySelectorAll('[data-open-upload]')) {
+  button.addEventListener('click', () => {
+    uploadStatus.textContent = '';
+    uploadDialog.showModal();
+  });
+}
+closeUpload.addEventListener('click', () => uploadDialog.close());
+uploadDialog.addEventListener('cancel', (event) => {
+  if (uploadBtn.disabled) event.preventDefault();
+});
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    if (!playerEl.hidden) document.documentElement.style.setProperty('--player-space', `${playerEl.offsetHeight + 32}px`);
+  }).observe(playerEl);
+}
 
 let episodes = [];
 let current = null;
@@ -81,7 +100,7 @@ function formatDate(iso) {
 
 function heardLabel(id) {
   const pos = readLocalPos(id);
-  if (pos == null || pos < 1) return '';
+  if (pos == null || pos < 1) return '准备收听';
   return `听到 ${formatTime(pos)}`;
 }
 
@@ -96,6 +115,9 @@ async function loadEpisodes() {
 function renderList() {
   listEl.replaceChildren();
   emptyEl.hidden = episodes.length > 0;
+  document.getElementById('episode-count').textContent = String(episodes.length);
+  document.getElementById('storage-total').textContent = episodes.length
+    ? `音频共 ${formatSize(episodes.reduce((sum, ep) => sum + ep.sizeBytes, 0))}` : '暂无音频';
   for (const ep of episodes) {
     const item = document.createElement('li');
     item.className = 'item';
@@ -104,6 +126,7 @@ function renderList() {
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'episode';
+    open.setAttribute('aria-label', `打开音频：${ep.title}`);
     open.addEventListener('click', () => {
       openEpisode(ep).catch(() => {
         playerError.textContent = '打不开这条音频';
@@ -125,13 +148,24 @@ function renderList() {
     heard.dataset.progressFor = ep.id;
     heard.textContent = heardLabel(ep.id);
 
-    open.append(title, meta, heard);
+    const art = document.createElement('span');
+    art.className = 'ep-art';
+    art.setAttribute('aria-hidden', 'true');
+    art.textContent = '♪';
+    const copy = document.createElement('span');
+    copy.className = 'ep-copy';
+    copy.append(title, meta, heard);
+    open.append(art, copy);
 
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'delete';
-    remove.textContent = '删除';
-    remove.addEventListener('click', () => removeEpisode(ep));
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `删除音频：${ep.title}`);
+    remove.title = '删除音频并释放空间';
+    remove.addEventListener('click', () => removeEpisode(ep).catch(() => {
+      listErrorEl.textContent = '删除失败，请检查网络后重试';
+    }));
 
     item.append(open, remove);
     listEl.append(item);
@@ -312,7 +346,8 @@ function updateTimes() {
 }
 
 function setPlaying(isPlaying) {
-  playBtn.textContent = isPlaying ? '暂停' : '播放';
+  document.getElementById('play-icon').textContent = isPlaying ? 'Ⅱ' : '▶';
+  document.getElementById('play-state').textContent = isPlaying ? '正在收听' : '准备收听';
   playBtn.setAttribute('aria-label', isPlaying ? '暂停' : '播放');
   playBtn.setAttribute('aria-pressed', isPlaying ? 'true' : 'false');
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
@@ -348,7 +383,7 @@ document.getElementById('pick-file').addEventListener('click', () => {
 
 fileInput.addEventListener('change', () => {
   const chosen = fileInput.files[0];
-  fileName.textContent = chosen ? chosen.name : '未选择';
+  fileName.textContent = chosen ? chosen.name : '选择音频文件';
 });
 
 form.addEventListener('submit', async (event) => {
@@ -359,22 +394,46 @@ form.addEventListener('submit', async (event) => {
     return;
   }
   uploadBtn.disabled = true;
+  closeUpload.disabled = true;
+  document.getElementById('pick-file').disabled = true;
+  uploadBtn.textContent = '正在上传…';
   uploadStatus.textContent = '上传中…';
   try {
     const res = await fetch('/api/episodes', { method: 'POST', body: new FormData(form) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || '上传失败');
     form.reset();
-    fileName.textContent = '未选择';
+    fileName.textContent = '选择音频文件';
     uploadStatus.textContent = '已上传';
     await loadEpisodes();
     const created = episodes.find((item) => item.id === data.id);
     if (created) await openEpisode(created);
+    uploadDialog.close();
   } catch (err) {
     uploadStatus.textContent = err.message || '上传失败';
   } finally {
     uploadBtn.disabled = false;
+    closeUpload.disabled = false;
+    document.getElementById('pick-file').disabled = false;
+    uploadBtn.textContent = '上传到我的音频';
   }
+});
+
+function seekTo(seconds) {
+  if (!positionReady || !Number.isFinite(audio.duration) || audio.duration <= 0 || !Number.isFinite(seconds)) return;
+  const next = Math.max(0, Math.min(seconds, audio.duration));
+  latestSeconds = next;
+  audio.dataset.pendingSeek = String(next);
+  audio.currentTime = next;
+  resumeNote.textContent = '';
+  persistPosition(next);
+  updateTimes();
+}
+document.getElementById('back-btn').addEventListener('click', () => seekTo(audio.currentTime - 15));
+document.getElementById('forward-btn').addEventListener('click', () => seekTo(audio.currentTime + 15));
+speedEl.addEventListener('change', () => {
+  const rate = Number(speedEl.value);
+  if ([1, 1.25, 1.5, 2].includes(rate)) audio.playbackRate = rate;
 });
 
 playBtn.addEventListener('click', async () => {
@@ -450,11 +509,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 if ('mediaSession' in navigator) {
-  const seekTo = (seconds) => {
-    if (!positionReady || !Number.isFinite(audio.duration)) return;
-    audio.currentTime = Math.max(0, Math.min(seconds, audio.duration));
-    persistPosition(audio.currentTime);
-  };
   const handlers = {
     play: () => audio.play().catch(() => { playerError.textContent = '无法播放'; }),
     pause: () => audio.pause(),

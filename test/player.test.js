@@ -83,3 +83,23 @@ test('switching tracks flushes the old track before changing the current one', a
   const saved = p.requests.find((r) => r.opts?.method === 'PUT');
   assert.equal(saved.url, '/api/progress/episode-1');
 });
+
+test('backward skipping saves zero and forward skipping clamps to duration', () => {
+  const p = player();
+  p.audio.currentTime = 8;
+  p.audio.dataset.pendingSeek = '8';
+  p.run('seekTo(audio.currentTime - 15)');
+  assert.equal(p.audio.currentTime, 0);
+  assert.equal(p.local.get('jtg-audio:pos:episode-1'), '0');
+  p.run('seekTo(999)');
+  assert.equal(p.audio.currentTime, 60);
+  assert.equal(p.local.get('jtg-audio:pos:episode-1'), '60');
+});
+
+test('speed controls change playback rate without moving the playback position', () => {
+  const p = player();
+  p.audio.currentTime = 33;
+  p.run("speedEl.value = '1.5'; speedEl.emit('change')");
+  assert.equal(p.audio.playbackRate, 1.5);
+  assert.equal(p.audio.currentTime, 33);
+});

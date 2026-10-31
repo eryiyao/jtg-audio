@@ -2,62 +2,64 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#FAF5ED">
   <title>JTG Audio</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6b4a'/%3E%3Cpath d='M12 10v12l10-6z' fill='%23f4fbf6'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='10' fill='%23D97757'/%3E%3Cpath d='M13 9v14l10-7z' fill='%23FAF5ED'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="wrap">
     <header class="head">
-      <h1>JTG Audio</h1>
-      <p class="sub">上传访谈或讲稿。关掉再打开，从上次停下的地方继续。</p>
+      <h1 class="brand"><img src="/assets/jtg-logo.png" alt="JTG" width="118" height="54"><span>Audio</span></h1>
+      <button class="primary add-button" type="button" data-open-upload><span aria-hidden="true">＋</span> 添加音频</button>
     </header>
 
-    <section class="panel" aria-labelledby="upload-title">
-      <h2 id="upload-title">上传</h2>
-      <form id="upload-form">
-        <label>
-          标题
-          <input name="title" type="text" maxlength="120" autocomplete="off" placeholder="可不填，默认用文件名">
-        </label>
-        <div class="field">
-          <span id="file-label">音频</span>
-          <div class="file-row">
-            <input id="file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.opus,.aac,.flac,.webm" class="file-input" aria-labelledby="file-label">
-            <button id="pick-file" type="button">选择音频</button>
-            <span id="file-name">未选择</span>
-          </div>
-        </div>
-        <button id="upload-btn" type="submit">上传</button>
-        <p id="upload-status" class="status" role="status"></p>
-      </form>
-    </section>
-
-    <section class="panel" aria-labelledby="list-title">
-      <h2 id="list-title">全部</h2>
-      <p id="list-error" class="status" role="status"></p>
-      <p id="empty" class="empty" hidden>还没有音频。先上传一个。</p>
-      <ul id="episode-list" class="list"></ul>
-    </section>
-  </div>
-
-  <div id="player" class="player" hidden>
-    <div class="player-inner">
-      <button id="play-btn" type="button" aria-label="播放" aria-pressed="false">播放</button>
-      <div class="player-body">
-        <p id="now-title" class="now-title"></p>
-        <p id="resume-note" class="resume-note"></p>
-        <div class="scrub">
-          <span id="time-current">0:00</span>
-          <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled>
-          <span id="time-total">0:00</span>
-        </div>
-        <p id="player-error" class="player-error" role="status"></p>
+    <section class="intro" aria-labelledby="intro-title">
+      <div>
+        <p class="eyebrow">给耳朵，留一点时间</p>
+        <h2 id="intro-title">想读的，<br class="mobile-break">慢慢听。</h2>
+        <p class="sub">把文稿带在身边。没听完的，下次接着听。</p>
       </div>
-    </div>
+      <div class="sound-art" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><i></i></div>
+    </section>
+
+    <main class="library" aria-labelledby="list-title">
+      <div class="section-head">
+        <h2 id="list-title">我的音频 <span id="episode-count" class="count">0</span></h2>
+        <p id="storage-total" class="storage">暂无音频</p>
+      </div>
+      <p id="list-error" class="status error" role="alert"></p>
+      <div id="empty" class="empty" hidden>
+        <div class="empty-disc" aria-hidden="true"><span>♪</span></div>
+        <h3>第一段声音，从这里开始</h3>
+        <p>上传一篇想听的文稿音频，<br>让阅读，也可以发生在路上。</p>
+        <button class="primary" type="button" data-open-upload>添加第一段音频 <span aria-hidden="true">↗</span></button>
+      </div>
+      <ul id="episode-list" class="list"></ul>
+      <p class="library-note">听完后可删除音频，释放云端空间。</p>
+    </main>
+    <footer class="footer"><span>Jim To Grow</span><span>把好奇带在身边<span class="orange-dot">.</span></span></footer>
   </div>
+
+  <dialog id="upload-dialog" aria-labelledby="upload-title">
+    <div class="dialog-heading"><div><p class="eyebrow">收进你的声音书架</p><h2 id="upload-title">添加音频</h2></div><button id="close-upload" class="icon-button" type="button" aria-label="关闭上传窗口">×</button></div>
+    <form id="upload-form">
+      <input id="file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.opus,.aac,.flac,.webm" class="sr-only" aria-label="音频文件">
+      <button id="pick-file" class="file-picker" type="button"><span class="upload-symbol" aria-hidden="true">↑</span><strong id="file-name">选择音频文件</strong><span>MP3、M4A、WAV 等 · 最大 200 MB</span></button>
+      <label class="title-label">音频标题 <span>选填</span><input name="title" type="text" maxlength="120" autocomplete="off" placeholder="不填就使用文件名"></label>
+      <button id="upload-btn" class="primary submit-button" type="submit">上传到我的音频</button>
+      <p id="upload-status" class="status" role="status"></p>
+    </form>
+  </dialog>
+
+  <section id="player" class="player" aria-label="音频播放器" hidden>
+    <div class="player-top"><div class="player-cover" aria-hidden="true"><span></span><span></span><span></span></div><div class="player-info"><span id="play-state" class="eyebrow">准备收听</span><p id="now-title" class="now-title"></p></div><label class="speed-control"><span class="sr-only">播放速度</span><select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div>
+    <div class="scrub"><span id="time-current">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled><span id="time-total">0:00</span></div>
+    <div class="player-bottom"><p id="resume-note" class="resume-note"></p><div class="transport"><button id="back-btn" class="skip-button" type="button" aria-label="后退15秒"><span aria-hidden="true">↶</span><small>15</small></button><button id="play-btn" class="play-button" type="button" aria-label="播放" aria-pressed="false"><span id="play-icon" aria-hidden="true">▶</span></button><button id="forward-btn" class="skip-button" type="button" aria-label="前进15秒"><span aria-hidden="true">↷</span><small>15</small></button></div><span class="player-brand" aria-hidden="true">JTG Audio</span></div>
+    <p id="player-error" class="status error" role="status"></p>
+  </section>
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
   <script src="/app.js"></script>
