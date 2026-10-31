@@ -10,7 +10,7 @@ function player() {
   function element() {
     const events = new Map();
     return {
-      dataset: {}, classList: { add() {}, remove() {} },
+      dataset: {}, classList: { add() {}, remove() {} }, style: { setProperty() {} },
       setAttribute(k, v) { this[k] = v; }, getAttribute(k) { return this[k]; },
       removeAttribute(k) { delete this[k]; }, replaceChildren() {}, append() {},
       querySelectorAll() { return []; },
@@ -24,7 +24,7 @@ function player() {
   const elements = new Map();
   const document = Object.assign(element(), {
     getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
-    createElement: element, body: element(),
+    createElement: element, createElementNS: element, body: element(),
   });
   const local = new Map();
   const requests = [];

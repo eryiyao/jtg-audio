@@ -112,6 +112,16 @@ async function loadEpisodes() {
   renderList();
 }
 
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `/assets/icons.svg#${name}`);
+  svg.append(use);
+  return svg;
+}
+
 function renderList() {
   listEl.replaceChildren();
   emptyEl.hidden = episodes.length > 0;
@@ -127,6 +137,7 @@ function renderList() {
     open.type = 'button';
     open.className = 'episode';
     open.setAttribute('aria-label', `打开音频：${ep.title}`);
+    if (current && current.id === ep.id) open.setAttribute('aria-current', 'true');
     open.addEventListener('click', () => {
       openEpisode(ep).catch(() => {
         playerError.textContent = '打不开这条音频';
@@ -151,7 +162,7 @@ function renderList() {
     const art = document.createElement('span');
     art.className = 'ep-art';
     art.setAttribute('aria-hidden', 'true');
-    art.textContent = '♪';
+    art.append(icon('audio'));
     const copy = document.createElement('span');
     copy.className = 'ep-copy';
     copy.append(title, meta, heard);
@@ -160,7 +171,7 @@ function renderList() {
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'delete';
-    remove.textContent = '×';
+    remove.append(icon('close'));
     remove.setAttribute('aria-label', `删除音频：${ep.title}`);
     remove.title = '删除音频并释放空间';
     remove.addEventListener('click', () => removeEpisode(ep).catch(() => {
@@ -215,6 +226,7 @@ async function openEpisode(ep) {
   timeCurrent.textContent = '0:00';
   timeTotal.textContent = ep.durationSeconds ? formatTime(ep.durationSeconds) : '0:00';
   seekEl.value = '0';
+  seekEl.style.setProperty('--played', '0%');
   seekEl.disabled = true;
   audio.pause();
   audio.removeAttribute('src');
@@ -343,11 +355,12 @@ function updateTimes() {
   if (!seeking && Number.isFinite(duration) && duration > 0) {
     seekEl.value = String(Math.round((audio.currentTime / duration) * 1000));
   }
+  seekEl.style.setProperty('--played', `${Number(seekEl.value) / 10}%`);
+  seekEl.setAttribute('aria-valuetext', `${formatTime(audio.currentTime)} / ${formatTime(duration)}`);
 }
 
 function setPlaying(isPlaying) {
-  document.getElementById('play-icon').textContent = isPlaying ? 'Ⅱ' : '▶';
-  document.getElementById('play-state').textContent = isPlaying ? '正在收听' : '准备收听';
+  document.getElementById('play-state').textContent = isPlaying ? '正在收听' : positionReady && audio.currentTime > 0 ? '已暂停' : '准备收听';
   playBtn.setAttribute('aria-label', isPlaying ? '暂停' : '播放');
   playBtn.setAttribute('aria-pressed', isPlaying ? 'true' : 'false');
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
@@ -455,6 +468,8 @@ seekEl.addEventListener('input', () => {
   const duration = audio.duration;
   if (!Number.isFinite(duration)) return;
   timeCurrent.textContent = formatTime((seekEl.value / 1000) * duration);
+  seekEl.style.setProperty('--played', `${Number(seekEl.value) / 10}%`);
+  seekEl.setAttribute('aria-valuetext', `${timeCurrent.textContent} / ${formatTime(duration)}`);
 });
 
 seekEl.addEventListener('change', () => {

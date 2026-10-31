@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+  <symbol id="upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+  <symbol id="arrow-right" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="audio" viewBox="0 0 24 24"><path d="M5 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5Z" fill="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6v12m6-12v12" stroke-width="3"/></symbol>
+  <symbol id="skip-back" viewBox="0 0 32 32">
+    <path d="M7 10a11 11 0 1 1-2 7M7 4v6h6"/>
+    <text x="16" y="22" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600">15</text>
+  </symbol>
+  <symbol id="skip-forward" viewBox="0 0 32 32">
+    <path d="M7 10a11 11 0 1 1-2 7M7 4v6h6" transform="translate(32 0) scale(-1 1)"/>
+    <text x="16" y="22" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600">15</text>
+  </symbol>
+</svg>
