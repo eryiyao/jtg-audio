@@ -115,10 +115,20 @@ function createApp(overrides = {}) {
   app.locals.config = config;
 
   app.use(express.json({ limit: '32kb' }));
+  app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+
+  function sharedProgress(id) {
+    // Until the first new-version playback, use the latest legacy browser save.
+    // After a session is claimed, old pages cannot overwrite shared progress.
+    const saved = store.getSharedProgress.get(id) || store.latestLegacyProgress.get(id);
+    return { episodeId: id, positionSeconds: saved?.position_seconds ?? null,
+      updatedAt: saved?.updated_at ?? null, sessionId: saved?.session_id ?? null,
+      sequence: saved?.sequence ?? 0 };
+  }
 
   app.get('/api/episodes', (req, res) => {
     const rows = store.listEpisodes.all();
-    res.json(rows.map(toEpisode));
+    res.json(rows.map((row) => ({ ...toEpisode(row), progress: sharedProgress(row.id) })));
   });
 
   app.post('/api/episodes', (req, res, next) => {
@@ -244,6 +254,46 @@ function createApp(overrides = {}) {
       positionSeconds: position,
       updatedAt,
     });
+  });
+
+  app.get('/api/shared-progress/:id', (req, res) => {
+    const row = findEpisode(store, req, res);
+    if (row) res.json(sharedProgress(row.id));
+  });
+
+  app.post('/api/shared-progress/:id/session', (req, res) => {
+    const row = findEpisode(store, req, res);
+    if (!row) return;
+    const body = req.body || {};
+    const before = sharedProgress(row.id);
+    const candidate = body.positionSeconds == null ? null : readPosition(body.positionSeconds);
+    if (body.positionSeconds != null && candidate == null) {
+      res.status(400).json({ error: '进度无效' }); return;
+    }
+    // An explicit seek is intentional. Normal play resumes the cloud position,
+    // unless this same session has a newer position not yet acknowledged.
+    const ownSession = before.sessionId && body.previousSessionId === before.sessionId;
+    let position = before.positionSeconds ?? candidate ?? 0;
+    if (candidate != null && (body.seek === true || ownSession)) position = candidate;
+    const sessionId = crypto.randomUUID();
+    store.claimSharedProgress.run(row.id, position, new Date().toISOString(), sessionId);
+    res.json(sharedProgress(row.id));
+  });
+
+  app.put('/api/shared-progress/:id', (req, res) => {
+    const row = findEpisode(store, req, res);
+    if (!row) return;
+    const body = req.body || {};
+    const position = readPosition(body.positionSeconds);
+    if (position == null || !ID_RE.test(body.sessionId || '') || !Number.isSafeInteger(body.sequence) || body.sequence < 1) {
+      res.status(400).json({ error: '进度参数无效' }); return;
+    }
+    const before = sharedProgress(row.id);
+    if (before.sessionId !== body.sessionId) {
+      res.status(409).json({ ...before, error: '已在另一台设备继续收听' }); return;
+    }
+    store.saveSharedProgress.run(position, new Date().toISOString(), body.sequence, row.id, body.sessionId, body.sequence);
+    res.json(sharedProgress(row.id));
   });
 
   app.use('/api', (req, res) => {

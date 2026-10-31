@@ -11,40 +11,25 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="head">
-      <h1 class="brand"><img src="/assets/jtg-logo.png" alt="JTG" width="118" height="54"><span>Audio</span></h1>
-      <button class="primary add-button" type="button" data-open-upload><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#plus"/></svg>添加音频</button>
-    </header>
-
-    <section class="intro" aria-labelledby="intro-title">
-      <div>
-        <p class="eyebrow">给耳朵，留一点时间</p>
-        <h2 id="intro-title">想读的，<br class="mobile-break">慢慢听。</h2>
-        <p class="sub">把文稿带在身边。<br class="mobile-break">没听完的，下次接着听。</p>
-      </div>
-      <div class="sound-art" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><i></i></div>
-    </section>
-
     <main class="library" aria-labelledby="list-title">
       <div class="section-head">
-        <h2 id="list-title">我的音频 <span id="episode-count" class="count">0</span></h2>
-        <p id="storage-total" class="storage">暂无音频</p>
+        <div class="library-heading"><h1 id="list-title">我的音频 <span id="episode-count" class="count">0</span></h1><p id="storage-total" class="storage">暂无音频</p></div>
+        <button class="primary add-button" type="button" data-open-upload><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#plus"/></svg>添加音频</button>
       </div>
       <p id="list-error" class="status error" role="alert"></p>
       <div id="empty" class="empty" hidden>
         <div class="empty-disc" aria-hidden="true"><span><svg class="icon"><use href="/assets/icons.svg#audio"/></svg></span></div>
-        <h3>第一段声音，从这里开始</h3>
-        <p>上传一篇想听的文稿音频，<br>让阅读，也可以发生在路上。</p>
+        <h3>还没有音频</h3>
+        <p>添加音频后，就可以开始收听。</p>
         <button class="primary" type="button" data-open-upload>添加第一段音频<svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-right"/></svg></button>
       </div>
       <ul id="episode-list" class="list"></ul>
       <p class="library-note">听完后可删除音频，释放云端空间。</p>
     </main>
-    <footer class="footer"><span>Jim To Grow</span><span>把好奇带在身边<span class="orange-dot">.</span></span></footer>
   </div>
 
   <dialog id="upload-dialog" aria-labelledby="upload-title">
-    <div class="dialog-heading"><div><p class="eyebrow">收进你的声音书架</p><h2 id="upload-title">添加音频</h2></div><button id="close-upload" class="icon-button" type="button" aria-label="关闭上传窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
+    <div class="dialog-heading"><div><h2 id="upload-title">添加音频</h2></div><button id="close-upload" class="icon-button" type="button" aria-label="关闭上传窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
     <form id="upload-form">
       <input id="file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.opus,.aac,.flac,.webm" class="sr-only" aria-label="音频文件">
       <button id="pick-file" class="file-picker" type="button"><span class="upload-symbol" aria-hidden="true"><svg class="icon"><use href="/assets/icons.svg#upload"/></svg></span><strong id="file-name">选择音频文件</strong><span>MP3、M4A、WAV 等 · 最大 200 MB</span></button>
@@ -72,10 +57,12 @@
         <button id="forward-btn" class="skip-button" type="button" aria-label="前进15秒" title="前进 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-forward"/></svg></button>
       </div>
     </div>
+    <p id="sync-status" class="status sync-status" role="status"></p>
     <p id="player-error" class="status error" role="status"></p>
   </section>
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
+  <script src="/progress-sync.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

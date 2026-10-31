@@ -7,6 +7,7 @@ const path = require('path');
 const test = require('node:test');
 const { createApp } = require('../src/server');
 const { makeWav } = require('./wav');
+const { ProgressSync } = require('../public/progress-sync');
 
 async function withServer(fn, options = {}) {
   const dir = options.dir || fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-'));
@@ -159,4 +160,85 @@ test('audio and progress survive a service restart', async () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function memoryStorage() {
+  const data = new Map();
+  return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, String(v)), removeItem: k => data.delete(k) };
+}
+
+test('independent devices share progress, fence old sessions, and preserve rewind and completion', async () => {
+  await withServer(async (base, { app }) => {
+    const ep = await (await fetch(`${base}/api/episodes`, { method: 'POST', body: wavForm('同步测试.wav', '同步测试', 60) })).json();
+    const statuses = [];
+    const device = () => new ProgressSync({ request: (url, opts) => fetch(base + url, opts), storage: memoryStorage(), onStatus: (_, state) => statuses.push(state) });
+    const desktop = device(), phone = device();
+    await fetch(`${base}/api/progress/${ep.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ positionSeconds: 12, clientKey: 'legacy-desktop' }) });
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 12);
+    assert.equal((await desktop.begin(ep.id, { positionSeconds: 2 })).positionSeconds, 12);
+    await desktop.save(ep.id, 33);
+    assert.equal((await phone.read(ep.id)).positionSeconds, 33);
+    await phone.begin(ep.id, { positionSeconds: 0 });
+    await phone.save(ep.id, 45);
+    await desktop.save(ep.id, 34); // delayed old-tab background flush
+    assert.ok(statuses.includes('conflict'));
+    assert.equal((await phone.read(ep.id)).positionSeconds, 45);
+    await fetch(`${base}/api/progress/${ep.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ positionSeconds: 3, clientKey: 'legacy-desktop' }) });
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 45, 'old app versions cannot replace shared progress');
+    await phone.save(ep.id, 15); // intentional rewind must not be replaced by max(position)
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 15);
+    await phone.save(ep.id, 0); // completion clears progress across devices
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 0);
+    const list = await (await fetch(`${base}/api/episodes`)).json();
+    assert.equal(list[0].progress.positionSeconds, 0);
+    await fetch(`${base}/api/episodes/${ep.id}`, { method: 'DELETE' });
+    assert.equal(app.locals.db.prepare('SELECT count(*) AS n FROM shared_progress').get().n, 0);
+  });
+});
+
+test('out-of-order saves cannot undo a newer seek; failed saves retry without stealing ownership', async () => {
+  await withServer(async (base) => {
+    const ep = await (await fetch(`${base}/api/episodes`, { method: 'POST', body: wavForm('顺序.wav', '顺序') })).json();
+    const storage = memoryStorage();
+    let offline = false;
+    const desktop = new ProgressSync({ storage, request: (url, opts) => offline ? Promise.reject(new Error('offline')) : fetch(base + url, opts) });
+    const session = await desktop.begin(ep.id, { positionSeconds: 0 });
+    const put = (sequence, positionSeconds) => fetch(`${base}/api/shared-progress/${ep.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: session.sessionId, sequence, positionSeconds }) });
+    await put(3, 10);
+    await put(2, 40);
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 10);
+    await desktop.begin(ep.id, { positionSeconds: 10 });
+    offline = true;
+    await desktop.save(ep.id, 25);
+    assert.ok(storage.getItem(desktop.key(ep.id)));
+    offline = false;
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 25);
+    assert.equal(storage.getItem(desktop.key(ep.id)), null);
+    offline = true;
+    await desktop.save(ep.id, 30);
+    const phone = new ProgressSync({ storage: memoryStorage(), request: (url, opts) => fetch(base + url, opts) });
+    await phone.begin(ep.id, { positionSeconds: 0 });
+    await phone.save(ep.id, 50);
+    offline = false;
+    assert.equal((await desktop.read(ep.id)).positionSeconds, 50, 'an old offline draft cannot overwrite another device');
+    assert.equal(storage.getItem(desktop.key(ep.id)), null);
+  });
+});
+
+test('shared progress and writer fencing survive a restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-shared-'));
+  let id, sessionId;
+  try {
+    await withServer(async (base) => {
+      id = (await (await fetch(`${base}/api/episodes`, { method: 'POST', body: wavForm('重启.wav', '重启') })).json()).id;
+      const device = new ProgressSync({ storage: memoryStorage(), request: (url, opts) => fetch(base + url, opts) });
+      sessionId = (await device.begin(id, { positionSeconds: 0 })).sessionId;
+      await device.save(id, 18);
+    }, { dir });
+    await withServer(async (base) => {
+      const saved = await (await fetch(`${base}/api/shared-progress/${id}`)).json();
+      assert.equal(saved.positionSeconds, 18);
+      assert.equal(saved.sessionId, sessionId);
+    }, { dir });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

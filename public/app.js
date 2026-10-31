@@ -2,7 +2,6 @@
 
 const POS_PREFIX = 'jtg-audio:pos:';
 const CURRENT_KEY = 'jtg-audio:current';
-const CLIENT_KEY = 'jtg-audio:client';
 
 const listEl = document.getElementById('episode-list');
 const emptyEl = document.getElementById('empty');
@@ -24,6 +23,7 @@ const audio = document.getElementById('audio');
 const uploadDialog = document.getElementById('upload-dialog');
 const closeUpload = document.getElementById('close-upload');
 const speedEl = document.getElementById('speed');
+const syncStatus = document.getElementById('sync-status');
 
 for (const button of document.querySelectorAll('[data-open-upload]')) {
   button.addEventListener('click', () => {
@@ -49,14 +49,27 @@ let seeking = false;
 let syncTimer = 0;
 let latestSeconds = 0;
 
-function clientKey() {
-  let key = localStorage.getItem(CLIENT_KEY);
-  if (!key || !/^[A-Za-z0-9_-]{1,80}$/.test(key)) {
-    key = crypto.randomUUID();
-    localStorage.setItem(CLIENT_KEY, key);
+let syncWritable = false;
+let syncEpoch = 0;
+let claimBusy = false;
+let finishedWhileClaiming = false;
+let refreshing = false;
+const positions = new Map();
+const cloud = new ProgressSync({ onStatus(id, status) {
+  if (!current || current.id !== id) return;
+  if (status === 'conflict') {
+    syncWritable = false;
+    clearTimeout(syncTimer);
+    syncEpoch += 1;
+    claimBusy = false;
+    audio.pause();
+    syncStatus.textContent = '已在其他页面或设备继续收听';
+  } else if (status === 'offline') {
+    syncStatus.textContent = '进度暂存本机，恢复网络后自动重试';
+  } else if (status === 'saved') {
+    syncStatus.textContent = '进度已同步';
   }
-  return key;
-}
+} });
 
 function posKey(id) {
   return POS_PREFIX + id;
@@ -99,7 +112,7 @@ function formatDate(iso) {
 }
 
 function heardLabel(id) {
-  const pos = readLocalPos(id);
+  const pos = positions.has(id) ? positions.get(id) : readLocalPos(id);
   if (pos == null || pos < 1) return '准备收听';
   return `听到 ${formatTime(pos)}`;
 }
@@ -109,6 +122,9 @@ async function loadEpisodes() {
   const res = await fetch('/api/episodes');
   if (!res.ok) throw new Error('列表加载失败');
   episodes = await res.json();
+  for (const ep of episodes) {
+    if (ep.id !== current?.id || (audio.paused && !claimBusy)) positions.set(ep.id, ep.progress?.positionSeconds ?? 0);
+  }
   renderList();
 }
 
@@ -190,25 +206,77 @@ function updateHeard(id) {
 }
 
 async function savedPosition(id) {
-  const local = readLocalPos(id);
-  if (local != null) return local;
   try {
-    const res = await fetch(`/api/progress/${id}?clientKey=${encodeURIComponent(clientKey())}`);
-    if (!res.ok) return 0;
-    const data = await res.json();
-    if (typeof data.positionSeconds === 'number') {
-      localStorage.setItem(posKey(id), String(data.positionSeconds));
-      return data.positionSeconds;
-    }
-  } catch (err) {
-    // 服务端进度只是预留，失败不影响本机续播。
+    const data = await cloud.read(id);
+    const position = data.positionSeconds ?? readLocalPos(id) ?? 0;
+    writeLocal(id, position);
+    return position;
+  } catch (_) {
+    syncStatus.textContent = '暂时无法读取云端进度，显示本机记录';
+    return readLocalPos(id) ?? 0;
   }
-  return 0;
+}
+
+async function refreshPaused() {
+  if (refreshing || claimBusy || !audio.paused) return;
+  refreshing = true;
+  const id = current?.id;
+  const epoch = syncEpoch;
+  try {
+    await loadEpisodes();
+    if (!id || !positionReady) return;
+    const saved = await cloud.read(id);
+    if (id !== current?.id || epoch !== syncEpoch || !audio.paused || claimBusy) return;
+    syncWritable = false;
+    applyCloudPosition(saved.positionSeconds ?? readLocalPos(id) ?? 0);
+    resumeNote.textContent = latestSeconds >= 1 ? `从 ${formatTime(latestSeconds)} 继续` : '';
+    syncStatus.textContent = saved.updatedAt ? '进度已同步' : '';
+  } catch (_) {
+    if (current) syncStatus.textContent = '暂时无法读取云端进度';
+  } finally { refreshing = false; }
+}
+
+function applyCloudPosition(seconds) {
+  const value = Number.isFinite(audio.duration) ? Math.min(seconds, audio.duration) : seconds;
+  latestSeconds = keepPosition(value);
+  audio.dataset.pendingSeek = String(latestSeconds);
+  audio.currentTime = latestSeconds;
+  writeLocal(current.id, latestSeconds);
+  updateTimes();
+}
+
+async function beginSync(seek = false, position = audio.currentTime) {
+  if (!current || !positionReady) return;
+  const id = current.id;
+  const epoch = ++syncEpoch;
+  syncWritable = false;
+  claimBusy = true;
+  finishedWhileClaiming = false;
+  clearTimeout(syncTimer);
+  syncStatus.textContent = '正在同步进度…';
+  try {
+    const data = await cloud.begin(id, { positionSeconds: keepPosition(position), seek });
+    if (epoch !== syncEpoch || current?.id !== id) return;
+    const elapsed = seek ? 0 : Math.max(0, audio.currentTime - position);
+    applyCloudPosition(finishedWhileClaiming ? 0 : data.positionSeconds + elapsed);
+    syncWritable = true;
+    syncServer(id, latestSeconds);
+  } catch (_) {
+    if (epoch !== syncEpoch || current?.id !== id) return;
+    audio.pause();
+    syncStatus.textContent = '无法同步进度，请恢复网络后重新点播放';
+  } finally {
+    if (epoch === syncEpoch) claimBusy = false;
+  }
 }
 
 async function openEpisode(ep) {
-  if (current && current.id === ep.id && audio.getAttribute('src')) return;
+  if (current && current.id === ep.id && audio.getAttribute('src')) return refreshPaused();
   flushPosition();
+  syncEpoch += 1;
+  syncWritable = false;
+  claimBusy = false;
+  syncStatus.textContent = '';
   const token = ++openToken;
   positionReady = false;
   latestSeconds = 0;
@@ -257,6 +325,7 @@ function applyPendingSeek() {
     latestSeconds = Number.isFinite(audio.currentTime) ? audio.currentTime : saved;
     updateTimes();
     rememberDuration(duration);
+    if (!audio.paused && !claimBusy && !syncWritable) beginSync();
   };
 
   if (!shouldSeek) {
@@ -306,6 +375,7 @@ function keepPosition(seconds) {
 }
 
 function writeLocal(id, seconds) {
+  positions.set(id, seconds);
   localStorage.setItem(posKey(id), String(seconds));
   updateHeard(id);
 }
@@ -316,12 +386,8 @@ function scheduleServerSync(id, seconds) {
 }
 
 function syncServer(id, seconds) {
-  fetch(`/api/progress/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ positionSeconds: seconds, clientKey: clientKey() }),
-    keepalive: true,
-  }).catch(() => {});
+  if (!syncWritable || id !== current?.id) return;
+  return cloud.save(id, seconds);
 }
 
 function persistPosition(seconds) {
@@ -333,11 +399,11 @@ function persistPosition(seconds) {
   latestSeconds = kept;
   audio.dataset.pendingSeek = String(kept);
   writeLocal(current.id, kept);
-  scheduleServerSync(current.id, kept);
+  if (syncWritable) scheduleServerSync(current.id, kept);
 }
 
 function flushPosition() {
-  if (!positionReady || !current) return;
+  if (!positionReady || !current || !syncWritable) return;
   clearTimeout(syncTimer);
   const seconds = audio.ended ? 0 : keepPosition(
     Number.isFinite(audio.currentTime) ? audio.currentTime : latestSeconds
@@ -380,6 +446,9 @@ async function removeEpisode(ep) {
     clearTimeout(syncTimer);
     openToken += 1;
     current = null;
+    syncEpoch += 1;
+    syncWritable = false;
+    claimBusy = false;
     positionReady = false;
     audio.pause();
     audio.removeAttribute('src');
@@ -441,6 +510,7 @@ function seekTo(seconds) {
   resumeNote.textContent = '';
   persistPosition(next);
   updateTimes();
+  if (!syncWritable) beginSync(true, next);
 }
 document.getElementById('back-btn').addEventListener('click', () => seekTo(audio.currentTime - 15));
 document.getElementById('forward-btn').addEventListener('click', () => seekTo(audio.currentTime + 15));
@@ -477,22 +547,19 @@ seekEl.addEventListener('change', () => {
   seeking = false;
   if (!Number.isFinite(duration) || duration <= 0) return;
   const next = (seekEl.value / 1000) * duration;
-  latestSeconds = next;
-  audio.dataset.pendingSeek = String(next);
-  audio.currentTime = next;
-  resumeNote.textContent = '';
-  persistPosition(next);
+  seekTo(next);
 });
 
 audio.addEventListener('loadedmetadata', applyPendingSeek);
 audio.addEventListener('play', () => {
   setPlaying(true);
+  beginSync();
   resumeNote.textContent = '';
 });
 audio.addEventListener('pause', () => {
   setPlaying(false);
   if (positionReady && audio.currentTime >= 0.5) latestSeconds = audio.currentTime;
-  persistPosition(latestSeconds);
+  if (positionReady && syncWritable) flushPosition();
 });
 audio.addEventListener('timeupdate', () => {
   updateTimes();
@@ -506,6 +573,7 @@ audio.addEventListener('ended', () => {
   setPlaying(false);
   clearTimeout(syncTimer);
   latestSeconds = 0;
+  finishedWhileClaiming = claimBusy;
   audio.dataset.pendingSeek = '0';
   if (current) {
     writeLocal(current.id, 0);
@@ -521,7 +589,10 @@ audio.addEventListener('error', () => {
 window.addEventListener('pagehide', flushPosition);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushPosition();
+  else refreshPaused();
 });
+window.addEventListener('focus', refreshPaused);
+window.addEventListener('online', () => { if (syncWritable) flushPosition(); else refreshPaused(); });
 
 if ('mediaSession' in navigator) {
   const handlers = {
@@ -538,7 +609,9 @@ if ('mediaSession' in navigator) {
 
 loadEpisodes().then(() => {
   const lastId = localStorage.getItem(CURRENT_KEY);
-  const last = episodes.find((item) => item.id === lastId);
+  const recent = [...episodes].filter((item) => item.progress?.updatedAt)
+    .sort((a, b) => b.progress.updatedAt.localeCompare(a.progress.updatedAt))[0];
+  const last = recent || episodes.find((item) => item.id === lastId);
   if (last) return openEpisode(last);
   return null;
 }).catch(() => {

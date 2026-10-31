@@ -31,7 +31,16 @@ function player() {
   const timers = new Map();
   let timerId = 0;
   const window = element();
+  class ProgressSync {
+    constructor({ onStatus }) { this.onStatus = onStatus; }
+    async read() { return { positionSeconds: 42 }; }
+    async begin(id, { positionSeconds }) { return { positionSeconds }; }
+    save(id, positionSeconds) {
+      requests.push({ url: `/api/shared-progress/${id}`, opts: { method: 'PUT', body: JSON.stringify({ positionSeconds }) } });
+    }
+  }
   const context = vm.createContext({ document, window, console, Intl,
+    ProgressSync,
     navigator: { mediaSession: { setActionHandler() {} } },
     crypto: { randomUUID: () => 'test-browser' },
     localStorage: { getItem: (k) => local.get(k) ?? null, setItem: (k, v) => local.set(k, String(v)), removeItem: (k) => local.delete(k) },
@@ -41,7 +50,7 @@ function player() {
   });
   const run = (code) => vm.runInContext(code, context);
   run(fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8'));
-  run("current = { id: 'episode-1', title: '测试', durationSeconds: 60 }; positionReady = true;");
+  run("current = { id: 'episode-1', title: '测试', durationSeconds: 60 }; positionReady = true; syncWritable = true;");
   return { run, local, requests, timers, window, document, audio: elements.get('audio') };
 }
 
@@ -81,7 +90,7 @@ test('switching tracks flushes the old track before changing the current one', a
   await p.run("openEpisode({ id: 'episode-2', title: '下一条', audioUrl: '/next' })");
   assert.equal(p.local.get('jtg-audio:pos:episode-1'), '19.2');
   const saved = p.requests.find((r) => r.opts?.method === 'PUT');
-  assert.equal(saved.url, '/api/progress/episode-1');
+  assert.equal(saved.url, '/api/shared-progress/episode-1');
 });
 
 test('backward skipping saves zero and forward skipping clamps to duration', () => {
@@ -102,4 +111,31 @@ test('speed controls change playback rate without moving the playback position',
   p.run("speedEl.value = '1.5'; speedEl.emit('change')");
   assert.equal(p.audio.playbackRate, 1.5);
   assert.equal(p.audio.currentTime, 33);
+});
+
+test('cloud progress wins over stale local progress', async () => {
+  const p = player();
+  p.local.set('jtg-audio:pos:episode-1', '8');
+  assert.equal(await p.run("savedPosition('episode-1')"), 42);
+  assert.equal(p.local.get('jtg-audio:pos:episode-1'), '42');
+});
+
+test('opening or hiding an idle page cannot write progress', () => {
+  const p = player();
+  p.audio.currentTime = 8;
+  p.run('syncWritable = false');
+  p.window.emit('pagehide');
+  p.audio.emit('pause');
+  assert.equal(p.requests.filter(r => r.opts?.method === 'PUT').length, 0);
+});
+
+test('a newer device stops the old player before its pause handler can write', () => {
+  const p = player();
+  p.audio.paused = false;
+  p.audio.currentTime = 20;
+  p.run("cloud.onStatus('episode-1', 'conflict')");
+  assert.equal(p.audio.paused, true);
+  p.audio.emit('pause');
+  p.window.emit('pagehide');
+  assert.equal(p.requests.filter(r => r.opts?.method === 'PUT').length, 0);
 });

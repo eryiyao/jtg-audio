@@ -21,8 +21,7 @@ function openDatabase(dbPath) {
       created_at TEXT NOT NULL
     );
   `);
-  // client_key 目前是浏览器自己生成的 id。以后加登录时，换成用户 id，
-  // 同一条进度就能跨设备共用。表结构不用再拆。
+  // Keep legacy per-browser progress so existing installations upgrade losslessly.
   db.exec(`
     CREATE TABLE IF NOT EXISTS progress (
       episode_id TEXT NOT NULL,
@@ -31,6 +30,15 @@ function openDatabase(dbPath) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (episode_id, client_key),
       FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shared_progress (
+      episode_id TEXT PRIMARY KEY REFERENCES episodes(id) ON DELETE CASCADE,
+      position_seconds REAL NOT NULL,
+      updated_at TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL DEFAULT 0
     );
   `);
 
@@ -57,6 +65,21 @@ function openDatabase(dbPath) {
       SELECT position_seconds, updated_at
       FROM progress
       WHERE episode_id = ? AND client_key = ?
+    `),
+    latestLegacyProgress: db.prepare(`
+      SELECT position_seconds, updated_at FROM progress
+      WHERE episode_id = ? ORDER BY updated_at DESC, client_key DESC LIMIT 1
+    `),
+    getSharedProgress: db.prepare(`SELECT * FROM shared_progress WHERE episode_id = ?`),
+    claimSharedProgress: db.prepare(`
+      INSERT INTO shared_progress (episode_id, position_seconds, updated_at, session_id, sequence)
+      VALUES (?, ?, ?, ?, 0)
+      ON CONFLICT(episode_id) DO UPDATE SET position_seconds = excluded.position_seconds,
+        updated_at = excluded.updated_at, session_id = excluded.session_id, sequence = 0
+    `),
+    saveSharedProgress: db.prepare(`
+      UPDATE shared_progress SET position_seconds = ?, updated_at = ?, sequence = ?
+      WHERE episode_id = ? AND session_id = ? AND sequence < ?
     `),
     upsertProgress: db.prepare(`
       INSERT INTO progress (episode_id, client_key, position_seconds, updated_at)
