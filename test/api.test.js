@@ -9,7 +9,7 @@ const { createApp } = require('../src/server');
 const { makeWav } = require('./wav');
 
 async function withServer(fn, options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-'));
+  const dir = options.dir || fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-'));
   const app = createApp({
     dataDir: path.join(dir, 'data'),
     uploadDir: path.join(dir, 'uploads'),
@@ -20,11 +20,11 @@ async function withServer(fn, options = {}) {
   });
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
-    await fn(base);
+    await fn(base, { dir, app });
   } finally {
     await new Promise((resolve) => server.close(resolve));
     app.locals.db.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (!options.dir) fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -36,7 +36,7 @@ function wavForm(name, title, seconds = 1) {
 }
 
 test('upload, list, range, progress, and delete', async () => {
-  await withServer(async (base) => {
+  await withServer(async (base, { dir, app }) => {
     const empty = await fetch(`${base}/api/episodes`);
     assert.strictEqual(empty.status, 200);
     assert.deepStrictEqual(await empty.json(), []);
@@ -91,10 +91,30 @@ test('upload, list, range, progress, and delete', async () => {
 
     const removed = await fetch(`${base}/api/episodes/${created.id}`, { method: 'DELETE' });
     assert.strictEqual(removed.status, 204);
+    assert.deepStrictEqual(fs.readdirSync(path.join(dir, 'uploads')), []);
+    assert.equal(app.locals.db.prepare('SELECT count(*) AS n FROM progress').get().n, 0);
     const after = await (await fetch(`${base}/api/episodes`)).json();
     assert.deepStrictEqual(after, []);
     const gone = await fetch(`${base}/api/progress/${created.id}`);
     assert.strictEqual(gone.status, 404);
+  });
+});
+
+test('failed file deletion retains the library entry and returns a failure', async (t) => {
+  await withServer(async (base, { dir }) => {
+    const episode = await (await fetch(`${base}/api/episodes`, {
+      method: 'POST', body: wavForm('删除失败验证.wav', '删除失败验证'),
+    })).json();
+    const unlink = t.mock.method(fs, 'unlinkSync', () => {
+      throw Object.assign(new Error('fixture permission failure'), { code: 'EACCES' });
+    });
+    try {
+      const result = await fetch(`${base}/api/episodes/${episode.id}`, { method: 'DELETE' });
+      assert.equal(result.status, 500);
+      const list = await (await fetch(`${base}/api/episodes`)).json();
+      assert.equal(list[0].id, episode.id);
+      assert.equal(fs.readdirSync(path.join(dir, 'uploads')).length, 1);
+    } finally { unlink.mock.restore(); }
   });
 });
 
@@ -111,4 +131,32 @@ test('rejects non-audio and oversize files', async () => {
     const tooBig = await fetch(`${base}/api/episodes`, { method: 'POST', body: big });
     assert.strictEqual(tooBig.status, 413);
   }, { maxUploadMb: 0.05 });
+});
+
+test('audio and progress survive a service restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-restart-'));
+  let episode;
+  try {
+    await withServer(async (base) => {
+      episode = await (await fetch(`${base}/api/episodes`, {
+        method: 'POST', body: wavForm('重启验证.wav', '重启验证'),
+      })).json();
+      const result = await fetch(`${base}/api/progress/${episode.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: 'phone', positionSeconds: 0.5 }),
+      });
+      assert.equal(result.status, 200);
+    }, { dir });
+    await withServer(async (base) => {
+      const list = await (await fetch(`${base}/api/episodes`)).json();
+      assert.equal(list[0].id, episode.id);
+      const audio = await fetch(`${base}${episode.audioUrl}`);
+      assert.equal(audio.status, 200);
+      assert.equal((await audio.arrayBuffer()).byteLength, makeWav().length);
+      const progress = await (await fetch(`${base}/api/progress/${episode.id}?clientKey=phone`)).json();
+      assert.equal(progress.positionSeconds, 0.5);
+    }, { dir });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -163,6 +163,7 @@ async function savedPosition(id) {
 
 async function openEpisode(ep) {
   if (current && current.id === ep.id && audio.getAttribute('src')) return;
+  flushPosition();
   const token = ++openToken;
   positionReady = false;
   latestSeconds = 0;
@@ -173,6 +174,9 @@ async function openEpisode(ep) {
   playerEl.hidden = false;
   document.body.classList.add('has-player');
   nowTitle.textContent = ep.title;
+  if ('mediaSession' in navigator && typeof MediaMetadata !== 'undefined') {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: ep.title, artist: 'JTG Audio' });
+  }
   setPlaying(false);
   timeCurrent.textContent = '0:00';
   timeTotal.textContent = ep.durationSeconds ? formatTime(ep.durationSeconds) : '0:00';
@@ -193,14 +197,15 @@ async function openEpisode(ep) {
 
 function applyPendingSeek() {
   if (!current || audio.dataset.readyApplied === '1') return;
+  const token = openToken;
   const saved = Number(audio.dataset.pendingSeek || 0);
   const duration = audio.duration;
-  const shouldSeek = saved >= 1 && Number.isFinite(duration) && saved < duration - 1;
+  const shouldSeek = saved > 0 && Number.isFinite(duration) && saved < duration;
   seekEl.disabled = !Number.isFinite(duration) || duration <= 0;
   playerError.textContent = '';
 
   const finish = () => {
-    if (!current || audio.dataset.readyApplied === '1') return;
+    if (!current || token !== openToken || audio.dataset.readyApplied === '1') return;
     audio.dataset.readyApplied = '1';
     positionReady = true;
     latestSeconds = Number.isFinite(audio.currentTime) ? audio.currentTime : saved;
@@ -285,6 +290,18 @@ function persistPosition(seconds) {
   scheduleServerSync(current.id, kept);
 }
 
+function flushPosition() {
+  if (!positionReady || !current) return;
+  clearTimeout(syncTimer);
+  const seconds = audio.ended ? 0 : keepPosition(
+    Number.isFinite(audio.currentTime) ? audio.currentTime : latestSeconds
+  );
+  latestSeconds = seconds;
+  audio.dataset.pendingSeek = String(seconds);
+  writeLocal(current.id, seconds);
+  syncServer(current.id, seconds);
+}
+
 function updateTimes() {
   const duration = audio.duration;
   timeCurrent.textContent = formatTime(audio.currentTime);
@@ -298,6 +315,7 @@ function setPlaying(isPlaying) {
   playBtn.textContent = isPlaying ? '暂停' : '播放';
   playBtn.setAttribute('aria-label', isPlaying ? '暂停' : '播放');
   playBtn.setAttribute('aria-pressed', isPlaying ? 'true' : 'false');
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 }
 
 async function removeEpisode(ep) {
@@ -305,11 +323,13 @@ async function removeEpisode(ep) {
   if (!ok) return;
   const res = await fetch(`/api/episodes/${ep.id}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 204) {
-    listErrorEl.textContent = '删除失败';
+    const error = await res.json().catch(() => ({}));
+    listErrorEl.textContent = error.error || '删除失败，请稍后重试';
     return;
   }
   localStorage.removeItem(posKey(ep.id));
   if (current && current.id === ep.id) {
+    clearTimeout(syncTimer);
     openToken += 1;
     current = null;
     positionReady = false;
@@ -410,7 +430,9 @@ audio.addEventListener('timeupdate', () => {
 });
 audio.addEventListener('ended', () => {
   setPlaying(false);
+  clearTimeout(syncTimer);
   latestSeconds = 0;
+  audio.dataset.pendingSeek = '0';
   if (current) {
     writeLocal(current.id, 0);
     syncServer(current.id, 0);
@@ -422,12 +444,28 @@ audio.addEventListener('error', () => {
   playerError.textContent = '这个文件播不了';
 });
 
-window.addEventListener('pagehide', () => {
-  if (!positionReady || !current) return;
-  const seconds = keepPosition(latestSeconds);
-  writeLocal(current.id, seconds);
-  syncServer(current.id, seconds);
+window.addEventListener('pagehide', flushPosition);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushPosition();
 });
+
+if ('mediaSession' in navigator) {
+  const seekTo = (seconds) => {
+    if (!positionReady || !Number.isFinite(audio.duration)) return;
+    audio.currentTime = Math.max(0, Math.min(seconds, audio.duration));
+    persistPosition(audio.currentTime);
+  };
+  const handlers = {
+    play: () => audio.play().catch(() => { playerError.textContent = '无法播放'; }),
+    pause: () => audio.pause(),
+    seekbackward: (details) => seekTo(audio.currentTime - (details.seekOffset || 15)),
+    seekforward: (details) => seekTo(audio.currentTime + (details.seekOffset || 15)),
+    seekto: (details) => seekTo(details.seekTime),
+  };
+  for (const [action, handler] of Object.entries(handlers)) {
+    try { navigator.mediaSession.setActionHandler(action, handler); } catch (_) { /* Older browsers. */ }
+  }
+}
 
 loadEpisodes().then(() => {
   const lastId = localStorage.getItem(CURRENT_KEY);

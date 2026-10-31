@@ -1,0 +1,27 @@
+# JTG Audio
+
+个人文稿音频库：电脑上传、手机收听、同一浏览器续听。保持小而实用。
+
+## 修改和上线
+
+用户要求功能优化时，完成本地修改、测试、提交 GitHub main、服务器更新、线上验证。
+先检查工作区与远程状态，保留其他人的修改。不得强推。
+
+- 仓库：https://github.com/eryiyao/jtg-audio
+- 地址：https://audio.jimtogrow.com
+- 连接信息仅从用户本地部署记录获取，不写入公开仓库。
+- 服务器代码：/opt/jtg-audio；独立 systemd 服务：jtg-audio；端口：127.0.0.1:4300
+- 更新命令：cd /opt/jtg-audio && ./update.sh
+- 数据：/var/lib/jtg-audio/data 和 /var/lib/jtg-audio/uploads，独立于代码。
+- Nginx：/etc/nginx/conf.d/jtg-audio.conf；认证文件：/etc/nginx/jtg-audio.htpasswd。
+
+只动本工具。不得修改同机库存、博客、MCP 的代码、数据、认证或配置。
+上传文件、数据库、口令及私钥不能进 git。更新不得重置口令或清理数据。
+删除音频要真正删除磁盘文件；失败不得假装成功。
+
+## 验证
+
+运行 npm test；前端改动检查桌面、手机宽度、长标题、实际播放与刷新续听。
+线上核对 main 与部署版本、匿名请求受保护、认证后可用、博客和库存仍可访问。
+真实手机锁屏和耳机效果必须区分真机验证与桌面模拟，不能宣称未做的验证已通过。
+生产功能测试只用自行生成的测试音频，结束清理该测试音频。

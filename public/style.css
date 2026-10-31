@@ -181,7 +181,7 @@ button:disabled {
 
 .item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.35rem;
   align-items: center;
 }
@@ -204,6 +204,7 @@ button:disabled {
 
 .ep-title {
   font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .ep-meta, .ep-heard {
@@ -234,7 +235,7 @@ button:disabled {
   width: min(40rem, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.8rem;
   align-items: center;
 }
@@ -251,6 +252,7 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .resume-note, .player-error {

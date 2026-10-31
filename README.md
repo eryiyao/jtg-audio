@@ -1,4 +1,4 @@
-# 听稿（jtg-audio）
+# JTG Audio
 
 给 yao 自己用的访谈 / 讲稿回听工具。上传音频，列出清单，用浏览器播放。刷新或关掉页面后，从上次停下的位置继续。
 
@@ -63,7 +63,7 @@ test/             接口测试
 - `GET /api/progress/:id?clientKey=`
 - `PUT /api/progress/:id`，JSON：`{ "positionSeconds": 12.3, "clientKey": "..." }`
 
-恢复顺序：本机有记录就用本机；本机没有再读服务端。所以换一台手机现在不会自动续上，只是把口子留好。以后登录时，把 `client_key` 换成用户 id 即可。
+恢复顺序：本机有记录就用本机；本机没有再读服务端。所以换一台手机现在不会自动续上，只是把口子留好。以后跨设备同步还需增加身份校验和进度冲突处理。
 
 一条音频真正播完后，进度会清成 0，下次从头听。中途暂停则停在暂停的位置，包括靠近结尾的时候。
 
@@ -75,58 +75,52 @@ test/             接口测试
 - `GET /api/episodes/:id/audio`（支持 `Range`，方便拖动）
 - `DELETE /api/episodes/:id`
 
-## 部署到阿里云
+## 阿里云部署与更新
 
-这段是给后续 Codex 或自己上手用的，这次不要真的部署。
+独立地址：`https://audio.jimtogrow.com`。博客和库存系统保持原样。
 
-这不是静态网站。上传、SQLite、续播接口都要一个常驻的 Node 进程。不要用 GitHub Pages，也不要只把 `public/` 丢到对象存储。
+- 代码：`/opt/jtg-audio`，跟随 GitHub `main`。
+- 服务：独立 `systemd` 服务 `jtg-audio`，开机启动，仅监听 `127.0.0.1:4300`。
+- 数据库：`/var/lib/jtg-audio/data/jtg.sqlite`。
+- 音频：`/var/lib/jtg-audio/uploads/`。
+- Nginx：`/etc/nginx/conf.d/jtg-audio.conf`。
+- 私人访问：HTTPS 下的 Nginx 基本认证，口令散列独立保存在 `/etc/nginx/jtg-audio.htpasswd`，不进仓库。
+- 单个上传上限 200 MB，Nginx 预留表单开销为 210 MB。
 
-目标：阿里云轻量应用服务器（Linux），域名 `jimtogrow.com` 解析到这台机器。Node 只监听本机，由 Nginx 反向代理出去。
+### 日常更新
 
-1. 安装 Node.js 22。`node -v` 至少是 22.5。
-2. 代码放固定目录，例如 `/opt/jtg-audio`。在该目录执行 `npm install`。
-3. 数据库和音频不要放仓库目录里，也不要放 `/tmp`。例如：
-   - `DATA_DIR=/var/lib/jtg-audio/data`
-   - `UPLOAD_DIR=/var/lib/jtg-audio/uploads`
-   - `DATABASE_PATH=/var/lib/jtg-audio/data/jtg.sqlite`
-4. 用 systemd 拉起进程，工作目录固定，环境变量写在 unit 里。升级代码时不要覆盖 `/var/lib/jtg-audio`。换机器或重装前先备份这个目录（sqlite 文件和 `uploads/` 都要）。
-5. Nginx 把 `jimtogrow.com` 转到 `127.0.0.1:3000`，证书在 Nginx 上终结。`client_max_body_size` 要大于等于 `MAX_UPLOAD_MB`，否则大文件会被代理直接拒绝。
-6. 安全组只开放 80 和 443。应用没有登录，任何人打开站点都能上传和收听。上线前用安全组、Nginx IP 限制，或 Nginx 基本认证收紧来源。等以后有登录再考虑对公网放开。
-7. 音频拖动依赖 HTTP Range。反代时把 `Range` 原样转给 Node，不要在 Nginx 里把整个文件缓冲完再返回。
+本地修改 → `npm test` 和页面检查 → 提交推送 GitHub `main` → 服务器执行：
 
-systemd 示例：
-
-```ini
-[Service]
-WorkingDirectory=/opt/jtg-audio
-Environment=HOST=127.0.0.1
-Environment=PORT=3000
-Environment=DATA_DIR=/var/lib/jtg-audio/data
-Environment=UPLOAD_DIR=/var/lib/jtg-audio/uploads
-Environment=DATABASE_PATH=/var/lib/jtg-audio/data/jtg.sqlite
-Environment=MAX_UPLOAD_MB=200
-ExecStart=/usr/bin/node --experimental-sqlite /opt/jtg-audio/src/server.js
-Restart=on-failure
+```bash
+cd /opt/jtg-audio
+./update.sh
 ```
 
-`ExecStart` 里的 `node` 路径按机器上的实际位置改。
+脚本要求干净的 main 分支，只做快进拉取、安装锁定依赖、测试、重启本服务和健康检查。不会重置口令、删除音频或修改同机其他服务。配置文件变更需单独审核并应用，普通更新不复制 Nginx/systemd 配置。
 
-Nginx 示例（证书路径按实际证书改）：
+更新后核对线上版本、认证、播放与续听。发生故障时查看 `sudo journalctl -u jtg-audio`；回退到上一已验证提交后重新安装依赖并重启本服务，不能回退或清空数据目录。
 
-```nginx
-server {
-  server_name jimtogrow.com;
-  client_max_body_size 200m;
+### 首次安装
 
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Range $http_range;
-    proxy_set_header If-Range $http_if_range;
-    proxy_buffering off;
-  }
-}
-```
+使用已安装的 Node 22.5+、Nginx、certbot。确认 `/usr/bin/node` 是合适的版本，端口 4300 空闲。
+
+1. 将仓库 main 克隆到 `/opt/jtg-audio`，运行 `npm ci --omit=dev` 和 `npm test`。
+2. 建立无交互登录权限的专用系统用户 `jtg-audio`；数据目录属于该用户，ACME 目录供 Nginx 读取。
+3. 安装 `deploy/jtg-audio.service`，`systemctl daemon-reload` 后启用并启动。
+4. 添加 `audio` 的 A 记录，指向现有服务器。
+5. 初次只安装 `deploy/nginx-http.conf` 到本工具独立配置文件，测试 Nginx 后 reload；该配置仅提供证书验证，不暴露应用。
+6. `certbot certonly --webroot -w /var/lib/jtg-audio/acme -d audio.jimtogrow.com` 获取证书；沿用服务器已有 certbot 账户与续期任务。
+7. 生成独立访问口令，使用散列认证文件；只在本机私下交付口令，不能提交到 GitHub。
+8. 安装 `deploy/nginx.conf`，`nginx -t` 通过后 reload。检查匿名访问得到 401、正确口令可访问、错误口令仍为 401。
+
+### 删除与磁盘空间
+
+删除前有确认。成功后移除实际音频文件、列表条目和服务端进度；文件删除失败时保留条目并提示失败，不假报成功。其他正在播放该音频的连接结束后，文件占用的磁盘块才会完全释放。
+
+应用没有音频回收站，也不会自动保留音频副本。云盘快照或外部备份是独立副本，不随应用删除自动清理。当前项目未配置音频定时备份。
+
+### 收听边界
+
+同一浏览器优先使用本地进度。清理浏览器全部数据或换浏览器不能保证恢复旧进度；没有跨设备同步。
+已接入 Media Session 播放、暂停、前后跳转，并在切到后台时保存。不同手机的锁屏与耳机行为需真机确认。
+刷新恢复位置后仍需手动点播放，这是有意保留的行为。

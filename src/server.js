@@ -173,12 +173,25 @@ function createApp(overrides = {}) {
     res.json(toEpisode(store.getEpisode.get(row.id)));
   });
 
-  app.delete('/api/episodes/:id', (req, res) => {
+  app.delete('/api/episodes/:id', (req, res, next) => {
     const row = findEpisode(store, req, res);
     if (!row) return;
     const filePath = resolveUpload(config.uploadDir, row.stored_name);
-    store.deleteEpisode.run(row.id);
-    if (filePath) fs.unlink(filePath, () => {});
+    if (!filePath) {
+      res.status(500).json({ error: '文件路径异常，未删除' });
+      return;
+    }
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      // A missing file is already removed; any other failure must remain visible.
+      if (err.code !== 'ENOENT') {
+        console.error('Audio deletion failed:', err.code);
+        res.status(500).json({ error: '文件删除失败，请稍后重试' });
+        return;
+      }
+    }
+    try { store.deleteEpisode.run(row.id); } catch (err) { next(err); return; }
     res.status(204).end();
   });
 

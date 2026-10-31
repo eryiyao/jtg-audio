@@ -1,0 +1,28 @@
+[Unit]
+Description=JTG Audio private listening library
+After=network.target
+
+[Service]
+Type=simple
+User=jtg-audio
+Group=jtg-audio
+WorkingDirectory=/opt/jtg-audio
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=4300
+Environment=DATA_DIR=/var/lib/jtg-audio/data
+Environment=UPLOAD_DIR=/var/lib/jtg-audio/uploads
+Environment=DATABASE_PATH=/var/lib/jtg-audio/data/jtg.sqlite
+Environment=MAX_UPLOAD_MB=200
+ExecStart=/usr/bin/node --experimental-sqlite /opt/jtg-audio/src/server.js
+Restart=on-failure
+RestartSec=3
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jtg-audio
+
+[Install]
+WantedBy=multi-user.target
