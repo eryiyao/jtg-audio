@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>听稿</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6b4a'/%3E%3Cpath d='M12 10v12l10-6z' fill='%23f4fbf6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <p class="mark">jtg</p>
+      <h1>听稿</h1>
+      <p class="sub">上传访谈或讲稿。关掉再打开，从上次停下的地方继续。</p>
+    </header>
+
+    <section class="panel" aria-labelledby="upload-title">
+      <h2 id="upload-title">上传</h2>
+      <form id="upload-form">
+        <label>
+          标题
+          <input name="title" type="text" maxlength="120" autocomplete="off" placeholder="可不填，默认用文件名">
+        </label>
+        <div class="field">
+          <span id="file-label">音频</span>
+          <div class="file-row">
+            <input id="file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.opus,.aac,.flac,.webm" class="file-input" aria-labelledby="file-label">
+            <button id="pick-file" type="button">选择音频</button>
+            <span id="file-name">未选择</span>
+          </div>
+        </div>
+        <button id="upload-btn" type="submit">上传</button>
+        <p id="upload-status" class="status" role="status"></p>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="list-title">
+      <h2 id="list-title">全部</h2>
+      <p id="list-error" class="status" role="status"></p>
+      <p id="empty" class="empty" hidden>还没有音频。先上传一个。</p>
+      <ul id="episode-list" class="list"></ul>
+    </section>
+  </div>
+
+  <div id="player" class="player" hidden>
+    <div class="player-inner">
+      <button id="play-btn" type="button" aria-label="播放" aria-pressed="false">播放</button>
+      <div class="player-body">
+        <p id="now-title" class="now-title"></p>
+        <p id="resume-note" class="resume-note"></p>
+        <div class="scrub">
+          <span id="time-current">0:00</span>
+          <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled>
+          <span id="time-total">0:00</span>
+        </div>
+        <p id="player-error" class="player-error" role="status"></p>
+      </div>
+    </div>
+  </div>
+  <audio id="audio" preload="metadata" playsinline></audio>
+  <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
+  <script src="/app.js"></script>
+</body>
+</html>
