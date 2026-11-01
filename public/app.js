@@ -178,9 +178,17 @@ function renderList() {
     heard.dataset.progressFor = ep.id;
     heard.textContent = heardLabel(ep.id);
 
+    const track = document.createElement('span');
+    track.className = 'ep-track';
+    track.dataset.progressTrack = ep.id;
+    track.setAttribute('aria-hidden', 'true');
+    const position = positions.get(ep.id) ?? readLocalPos(ep.id) ?? 0;
+    track.hidden = !ep.durationSeconds || position < 1;
+    track.style.setProperty('--episode-progress', `${ep.durationSeconds ? Math.min(100, Math.max(0, position / ep.durationSeconds * 100)) : 0}%`);
+
     const copy = document.createElement('span');
     copy.className = 'ep-copy';
-    copy.append(title, meta, heard);
+    copy.append(title, meta, heard, track);
     open.append(copy);
 
     const remove = document.createElement('button');
@@ -201,6 +209,14 @@ function renderList() {
 function updateHeard(id) {
   for (const el of listEl.querySelectorAll('[data-progress-for]')) {
     if (el.dataset.progressFor === id) el.textContent = heardLabel(id);
+  }
+  const episode = episodes.find((ep) => ep.id === id);
+  const position = positions.get(id) ?? readLocalPos(id) ?? 0;
+  for (const track of listEl.querySelectorAll('[data-progress-track]')) {
+    if (track.dataset.progressTrack === id && episode?.durationSeconds) {
+      track.hidden = position < 1;
+      track.style.setProperty('--episode-progress', `${Math.min(100, Math.max(0, position / episode.durationSeconds * 100))}%`);
+    }
   }
 }
 

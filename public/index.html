@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#FAF5ED">
+  <meta name="theme-color" content="#F6F3ED">
   <title>JTG Audio</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='10' fill='%23D97757'/%3E%3Cpath d='M13 9v14l10-7z' fill='%23FAF5ED'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/style.css">
@@ -27,8 +27,28 @@
         <button class="primary" type="button" data-open-upload>添加第一段音频<svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-right"/></svg></button>
       </div>
       <ul id="episode-list" class="list"></ul>
-      <p class="library-note">听完后可删除音频，释放云端空间。</p>
+      <p class="library-note">听完可删除，释放云端空间。</p>
     </main>
+    <section id="player" class="player" aria-label="音频播放器" hidden>
+      <div class="player-top">
+        <div class="player-info"><span id="play-state" class="sr-only">准备收听</span><p id="now-title" class="now-title"></p></div>
+        <label class="speed-control"><span class="sr-only">播放速度</span><span id="speed-value" aria-hidden="true">1×</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron"/></svg><select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+      </div>
+      <div class="scrub">
+        <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled>
+        <div class="timestamps"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
+      </div>
+      <div class="player-bottom">
+        <p id="resume-note" class="sr-only"></p>
+        <div class="transport">
+          <button id="back-btn" class="skip-button" type="button" aria-label="后退15秒" title="后退 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-back"/></svg></button>
+          <button id="play-btn" class="play-button" type="button" aria-label="播放" aria-pressed="false"><svg class="icon play-symbol" aria-hidden="true"><use href="/assets/icons.svg#play"/></svg><svg class="icon pause-symbol" aria-hidden="true"><use href="/assets/icons.svg#pause"/></svg></button>
+          <button id="forward-btn" class="skip-button" type="button" aria-label="前进15秒" title="前进 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-forward"/></svg></button>
+        </div>
+      </div>
+      <p id="sync-status" class="status sync-status" role="status"></p>
+      <p id="player-error" class="status error" role="status"></p>
+    </section>
   </div>
 
   <dialog id="upload-dialog" aria-labelledby="upload-title">
@@ -47,26 +67,6 @@
     </form>
   </dialog>
 
-  <section id="player" class="player" aria-label="音频播放器" hidden>
-    <div class="player-top">
-      <div class="player-info"><span id="play-state" class="sr-only">准备收听</span><p id="now-title" class="now-title"></p></div>
-      <label class="speed-control"><span class="sr-only">播放速度</span><span id="speed-value" aria-hidden="true">1×</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron"/></svg><select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
-    </div>
-    <div class="scrub">
-      <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled>
-      <div class="timestamps"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
-    </div>
-    <div class="player-bottom">
-      <p id="resume-note" class="resume-note"></p>
-      <div class="transport">
-        <button id="back-btn" class="skip-button" type="button" aria-label="后退15秒" title="后退 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-back"/></svg></button>
-        <button id="play-btn" class="play-button" type="button" aria-label="播放" aria-pressed="false"><svg class="icon play-symbol" aria-hidden="true"><use href="/assets/icons.svg#play"/></svg><svg class="icon pause-symbol" aria-hidden="true"><use href="/assets/icons.svg#pause"/></svg></button>
-        <button id="forward-btn" class="skip-button" type="button" aria-label="前进15秒" title="前进 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-forward"/></svg></button>
-      </div>
-    </div>
-    <p id="sync-status" class="status sync-status" role="status"></p>
-    <p id="player-error" class="status error" role="status"></p>
-  </section>
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
   <script src="/progress-sync.js"></script>
