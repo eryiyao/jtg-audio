@@ -168,21 +168,21 @@ function renderList() {
     meta.className = 'ep-meta';
     const bits = [formatDate(ep.createdAt), formatSize(ep.sizeBytes)];
     if (ep.durationSeconds) bits.push(formatTime(ep.durationSeconds));
-    meta.textContent = bits.filter(Boolean).join(' · ');
+    for (const bit of bits.filter(Boolean)) {
+      const detail = document.createElement('span');
+      detail.textContent = bit;
+      meta.append(detail);
+    }
 
     const heard = document.createElement('span');
     heard.className = 'ep-heard';
     heard.dataset.progressFor = ep.id;
     heard.textContent = heardLabel(ep.id);
 
-    const art = document.createElement('span');
-    art.className = 'ep-art';
-    art.setAttribute('aria-hidden', 'true');
-    art.append(icon('audio'));
     const copy = document.createElement('span');
     copy.className = 'ep-copy';
     copy.append(title, meta, heard);
-    open.append(art, copy);
+    open.append(copy);
 
     const remove = document.createElement('button');
     remove.type = 'button';
