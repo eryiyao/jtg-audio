@@ -142,8 +142,7 @@ function renderList() {
   listEl.replaceChildren();
   emptyEl.hidden = episodes.length > 0;
   document.getElementById('episode-count').textContent = String(episodes.length);
-  document.getElementById('storage-total').textContent = episodes.length
-    ? `音频共 ${formatSize(episodes.reduce((sum, ep) => sum + ep.sizeBytes, 0))}` : '暂无音频';
+  document.getElementById('storage-total').textContent = formatSize(episodes.reduce((sum, ep) => sum + ep.sizeBytes, 0));
   for (const ep of episodes) {
     const item = document.createElement('li');
     item.className = 'item';
