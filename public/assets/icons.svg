@@ -8,11 +8,12 @@
   <symbol id="play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5Z" fill="currentColor" stroke-width="1.5"/></symbol>
   <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6v12m6-12v12" stroke-width="3"/></symbol>
   <symbol id="skip-back" viewBox="0 0 32 32">
-    <path d="M7 10a11 11 0 1 1-2 7M7 4v6h6"/>
-    <text x="16" y="22" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600">15</text>
+    <!-- Circle and outlined numerals share center (16, 17); no font-dependent baseline. -->
+    <path d="M13 6.5h3a10.5 10.5 0 1 1-10.14 7.78M16.5 3 13 6.5l3.5 3.5"/>
+    <path fill="currentColor" stroke="none" d="M13.75 21.25H12.1V15.03Q11.19 15.87 9.96 16.28V14.78Q10.61 14.57 11.37 13.98Q12.13 13.39 12.41 12.6H13.75ZM16.24 19.04 17.89 18.87Q17.96 19.42 18.3 19.75Q18.65 20.08 19.1 20.08Q19.62 20.08 19.98 19.66Q20.34 19.24 20.34 18.39Q20.34 17.6 19.98 17.2Q19.63 16.8 19.06 16.8Q18.35 16.8 17.78 17.43L16.44 17.24L17.29 12.75H21.66V14.3H18.54L18.28 15.76Q18.83 15.49 19.41 15.49Q20.51 15.49 21.27 16.29Q22.04 17.09 22.04 18.36Q22.04 19.42 21.42 20.26Q20.58 21.4 19.09 21.4Q17.89 21.4 17.14 20.76Q16.39 20.12 16.24 19.04Z"/>
   </symbol>
   <symbol id="skip-forward" viewBox="0 0 32 32">
-    <path d="M7 10a11 11 0 1 1-2 7M7 4v6h6" transform="translate(32 0) scale(-1 1)"/>
-    <text x="16" y="22" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600">15</text>
+    <path d="M13 6.5h3a10.5 10.5 0 1 1-10.14 7.78M16.5 3 13 6.5l3.5 3.5" transform="translate(32 0) scale(-1 1)"/>
+    <path fill="currentColor" stroke="none" d="M13.75 21.25H12.1V15.03Q11.19 15.87 9.96 16.28V14.78Q10.61 14.57 11.37 13.98Q12.13 13.39 12.41 12.6H13.75ZM16.24 19.04 17.89 18.87Q17.96 19.42 18.3 19.75Q18.65 20.08 19.1 20.08Q19.62 20.08 19.98 19.66Q20.34 19.24 20.34 18.39Q20.34 17.6 19.98 17.2Q19.63 16.8 19.06 16.8Q18.35 16.8 17.78 17.43L16.44 17.24L17.29 12.75H21.66V14.3H18.54L18.28 15.76Q18.83 15.49 19.41 15.49Q20.51 15.49 21.27 16.29Q22.04 17.09 22.04 18.36Q22.04 19.42 21.42 20.26Q20.58 21.4 19.09 21.4Q17.89 21.4 17.14 20.76Q16.39 20.12 16.24 19.04Z"/>
   </symbol>
 </svg>
