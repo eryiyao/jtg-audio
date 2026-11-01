@@ -14,6 +14,9 @@ Environment=DATA_DIR=/var/lib/jtg-audio/data
 Environment=UPLOAD_DIR=/var/lib/jtg-audio/uploads
 Environment=DATABASE_PATH=/var/lib/jtg-audio/data/jtg.sqlite
 Environment=MAX_UPLOAD_MB=200
+Environment=PUBLIC_ORIGIN=https://audio.jimtogrow.com
+Environment=AUTH_USER=yao
+LoadCredential=audio-password:/etc/nginx/jtg-audio.htpasswd
 ExecStart=/usr/bin/node --experimental-sqlite /opt/jtg-audio/src/server.js
 Restart=on-failure
 RestartSec=3

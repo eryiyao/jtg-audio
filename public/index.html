@@ -27,7 +27,7 @@
         <button class="primary" type="button" data-open-upload>添加第一段音频<svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-right"/></svg></button>
       </div>
       <ul id="episode-list" class="list"></ul>
-      <p class="library-note">听完可删除，释放云端空间。</p>
+      <div class="library-tools"><p class="library-note">听完可删除，释放云端空间。</p><button id="logout-button" class="logout-button" type="button" hidden>退出登录</button></div>
     </main>
     <section id="player" class="player" aria-label="音频播放器" hidden>
       <div class="player-top">
@@ -70,6 +70,7 @@
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
   <script src="/progress-sync.js"></script>
+  <script src="/session.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

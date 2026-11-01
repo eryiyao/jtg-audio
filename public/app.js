@@ -24,6 +24,7 @@ const uploadDialog = document.getElementById('upload-dialog');
 const closeUpload = document.getElementById('close-upload');
 const speedEl = document.getElementById('speed');
 const syncStatus = document.getElementById('sync-status');
+const apiFetch = (...args) => window.JtgSession ? window.JtgSession.request(...args) : fetch(...args);
 
 for (const button of document.querySelectorAll('[data-open-upload]')) {
   button.addEventListener('click', () => {
@@ -55,7 +56,7 @@ let claimBusy = false;
 let finishedWhileClaiming = false;
 let refreshing = false;
 const positions = new Map();
-const cloud = new ProgressSync({ onStatus(id, status) {
+const cloud = new ProgressSync({ request: apiFetch, onStatus(id, status) {
   if (!current || current.id !== id) return;
   if (status === 'conflict') {
     syncWritable = false;
@@ -119,7 +120,7 @@ function heardLabel(id) {
 
 async function loadEpisodes() {
   listErrorEl.textContent = '';
-  const res = await fetch('/api/episodes');
+  const res = await apiFetch('/api/episodes');
   if (!res.ok) throw new Error('列表加载失败');
   episodes = await res.json();
   for (const ep of episodes) {
@@ -369,7 +370,7 @@ function rememberDuration(duration) {
   if (!current || current.durationSeconds || !Number.isFinite(duration) || duration <= 0) return;
   const rounded = Math.round(duration * 10) / 10;
   current.durationSeconds = rounded;
-  fetch(`/api/episodes/${current.id}`, {
+  apiFetch(`/api/episodes/${current.id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ durationSeconds: rounded }),
@@ -426,7 +427,7 @@ function flushPosition() {
   latestSeconds = seconds;
   audio.dataset.pendingSeek = String(seconds);
   writeLocal(current.id, seconds);
-  syncServer(current.id, seconds);
+  return syncServer(current.id, seconds);
 }
 
 function updateTimes() {
@@ -450,7 +451,7 @@ function setPlaying(isPlaying) {
 async function removeEpisode(ep) {
   const ok = window.confirm(`确定删除「${ep.title}」？文件会一起去掉。`);
   if (!ok) return;
-  const res = await fetch(`/api/episodes/${ep.id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/episodes/${ep.id}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 204) {
     const error = await res.json().catch(() => ({}));
     listErrorEl.textContent = error.error || '删除失败，请稍后重试';
@@ -497,7 +498,7 @@ form.addEventListener('submit', async (event) => {
   uploadBtn.textContent = '正在上传…';
   uploadStatus.textContent = '上传中…';
   try {
-    const res = await fetch('/api/episodes', { method: 'POST', body: new FormData(form) });
+    const res = await apiFetch('/api/episodes', { method: 'POST', body: new FormData(form) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || '上传失败');
     form.reset();
@@ -612,6 +613,38 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', refreshPaused);
 window.addEventListener('online', () => { if (syncWritable) flushPosition(); else refreshPaused(); });
+
+if (window.JtgSession) {
+  const logout = document.getElementById('logout-button');
+  apiFetch('/api/auth/session').then((res) => res.ok ? res.json() : null).then((data) => {
+    logout.hidden = !data?.enabled;
+  }).catch(() => {});
+  window.addEventListener('jtg:session-expired', () => {
+    syncWritable = false;
+    clearTimeout(syncTimer);
+    syncEpoch += 1;
+    persistPosition(audio.currentTime);
+    audio.pause();
+  });
+  logout.addEventListener('click', async () => {
+    if (logout.disabled) return;
+    logout.disabled = true;
+    audio.pause();
+    await flushPosition();
+    try {
+      const response = await apiFetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) throw new Error('退出失败，请重试');
+      syncWritable = false;
+      clearTimeout(syncTimer);
+      audio.removeAttribute('src');
+      audio.load();
+      location.replace('/login');
+    } catch (_) {
+      listErrorEl.textContent = '退出失败，请检查网络后重试。';
+      logout.disabled = false;
+    }
+  });
+}
 
 if ('mediaSession' in navigator) {
   const handlers = {

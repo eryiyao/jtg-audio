@@ -10,7 +10,7 @@ npm ci --omit=dev --no-audit --no-fund
 npm test
 sudo systemctl restart jtg-audio
 for attempt in {1..15}; do
-  if curl --fail --silent http://127.0.0.1:4300/api/episodes >/dev/null; then
+  if curl --fail --silent http://127.0.0.1:4300/healthz >/dev/null; then
     echo "JTG Audio updated to $(git rev-parse --short HEAD)"
     exit 0
   fi

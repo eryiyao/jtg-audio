@@ -6,6 +6,7 @@ const path = require('path');
 const express = require('express');
 const multer = require('multer');
 const { openDatabase, toEpisode } = require('./db');
+const { installAuth } = require('./auth');
 
 const AUDIO_TYPES = {
   '.mp3': 'audio/mpeg',
@@ -38,7 +39,12 @@ function loadConfig(overrides = {}) {
   maxUploadMb = Math.min(maxUploadMb, 2048);
   const port = Number(process.env.PORT || 3000);
   const host = process.env.HOST || '127.0.0.1';
-  return { root, dataDir, uploadDir, dbPath, maxUploadMb, port, host };
+  const authPasswordFile = overrides.authPasswordFile || process.env.AUTH_PASSWORD_FILE ||
+    (process.env.CREDENTIALS_DIRECTORY ? path.join(process.env.CREDENTIALS_DIRECTORY, 'audio-password') : null);
+  const publicOrigin = overrides.publicOrigin || process.env.PUBLIC_ORIGIN || null;
+  const secureCookies = overrides.secureCookies ?? (process.env.NODE_ENV === 'production' || publicOrigin?.startsWith('https://') || false);
+  return { root, dataDir, uploadDir, dbPath, maxUploadMb, port, host, authPasswordFile,
+    authUser: overrides.authUser || process.env.AUTH_USER || 'yao', publicOrigin, secureCookies, authNow: overrides.authNow };
 }
 
 function extensionOf(filename) {
@@ -113,8 +119,10 @@ function createApp(overrides = {}) {
   app.disable('x-powered-by');
   app.locals.db = store.db;
   app.locals.config = config;
+  app.set('trust proxy', 'loopback');
 
   app.use(express.json({ limit: '32kb' }));
+  installAuth(app, store.db, config);
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
   function sharedProgress(id) {
@@ -304,7 +312,7 @@ function createApp(overrides = {}) {
   app.use(express.static(publicDir, {
     index: 'index.html',
     setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
     },
   }));
 
@@ -360,7 +368,7 @@ function streamFile(req, res, filePath, mimeType) {
 
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Content-Type', mimeType);
-  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('Cache-Control', 'private, no-store');
 
   const range = req.headers.range;
   if (!range) {
