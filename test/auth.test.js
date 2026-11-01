@@ -81,7 +81,7 @@ test('anonymous access reaches only login assets; private APIs, audio and applic
     assert.equal((await request('/login')).status, 200);
     assert.equal((await request('/style.css')).status, 200);
     assert.equal((await request('/healthz')).status, 200);
-    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
+    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/sleep-timer.js', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
       const response = await request(url);
       assert.equal(response.status, 401, url);
       assert.equal(response.headers.get('www-authenticate'), null);

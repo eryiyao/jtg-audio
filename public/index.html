@@ -46,7 +46,11 @@
           <button id="forward-btn" class="skip-button" type="button" aria-label="前进15秒" title="前进 15 秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-forward"/></svg></button>
         </div>
       </div>
-      <p id="sync-status" class="status sync-status" role="status"></p>
+      <div class="player-footer">
+        <button id="sleep-button" class="sleep-button" type="button" aria-haspopup="dialog" aria-controls="sleep-dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#moon"/></svg><span id="sleep-label">睡眠定时</span></button>
+        <p id="sync-status" class="status sync-status" role="status"></p>
+      </div>
+      <p id="sleep-announcement" class="sr-only" role="status"></p>
       <p id="player-error" class="status error" role="status"></p>
     </section>
   </div>
@@ -67,10 +71,24 @@
     </form>
   </dialog>
 
+  <dialog id="sleep-dialog" class="sleep-dialog" aria-labelledby="sleep-title" aria-describedby="sleep-description">
+    <div class="dialog-heading"><h2 id="sleep-title">睡眠定时</h2><button id="close-sleep" class="icon-button" type="button" aria-label="关闭睡眠定时窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
+    <p id="sleep-description" class="sleep-description">选一个时长，到点自动暂停。</p>
+    <div class="sleep-options">
+      <button id="sleep-10" type="button" aria-label="10 分钟后暂停"><span>10</span> 分钟</button>
+      <button id="sleep-20" type="button" aria-label="20 分钟后暂停"><span>20</span> 分钟</button>
+      <button id="sleep-30" type="button" aria-label="30 分钟后暂停"><span>30</span> 分钟</button>
+      <button id="sleep-60" type="button" aria-label="60 分钟后暂停"><span>60</span> 分钟</button>
+    </div>
+    <div id="sleep-active" class="sleep-active" hidden><p id="sleep-remaining"></p><button id="cancel-sleep" type="button">取消定时</button></div>
+    <p class="sleep-help">仅当前页面生效，暂停期间继续计时。</p>
+  </dialog>
+
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
   <script src="/progress-sync.js"></script>
   <script src="/session.js"></script>
+  <script src="/sleep-timer.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

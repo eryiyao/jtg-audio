@@ -72,6 +72,46 @@ const cloud = new ProgressSync({ request: apiFetch, onStatus(id, status) {
   }
 } });
 
+const sleepDialog = document.getElementById('sleep-dialog');
+const sleepButton = document.getElementById('sleep-button');
+const sleepAnnouncement = document.getElementById('sleep-announcement');
+let sleepStorage;
+try { sleepStorage = window.sessionStorage; } catch (_) { /* Storage may be disabled. */ }
+const sleepTimer = new SleepTimer({
+  storage: sleepStorage,
+  onTick(remaining) {
+    const time = formatTime(Math.ceil(remaining / 1000));
+    document.getElementById('sleep-label').textContent = remaining ? `${time} 后暂停` : '睡眠定时';
+    sleepButton.dataset.active = remaining ? 'true' : 'false';
+    sleepButton.setAttribute('aria-label', remaining ? `睡眠定时：${time} 后暂停，点击修改` : '设置睡眠定时');
+    document.getElementById('sleep-active').hidden = !remaining;
+    document.getElementById('sleep-remaining').textContent = remaining ? `剩余 ${time}` : '';
+  },
+  onExpire() {
+    audio.pause();
+    setPlaying(false);
+    flushPosition();
+    sleepAnnouncement.textContent = '睡眠定时已结束，播放已暂停';
+  },
+});
+sleepButton.addEventListener('click', () => {
+  sleepTimer.refresh();
+  sleepDialog.showModal();
+});
+document.getElementById('close-sleep').addEventListener('click', () => sleepDialog.close());
+for (const minutes of [10, 20, 30, 60]) {
+  document.getElementById(`sleep-${minutes}`).addEventListener('click', () => {
+    sleepTimer.start(minutes);
+    sleepAnnouncement.textContent = `已设置 ${minutes} 分钟后暂停`;
+    sleepDialog.close();
+  });
+}
+document.getElementById('cancel-sleep').addEventListener('click', () => {
+  sleepTimer.clear();
+  sleepAnnouncement.textContent = '已取消睡眠定时';
+  sleepDialog.close();
+});
+
 function posKey(id) {
   return POS_PREFIX + id;
 }
@@ -459,6 +499,7 @@ async function removeEpisode(ep) {
   }
   localStorage.removeItem(posKey(ep.id));
   if (current && current.id === ep.id) {
+    sleepTimer.clear();
     clearTimeout(syncTimer);
     openToken += 1;
     current = null;
@@ -572,6 +613,8 @@ seekEl.addEventListener('change', () => {
 
 audio.addEventListener('loadedmetadata', applyPendingSeek);
 audio.addEventListener('play', () => {
+  if (sleepTimer.check()) return;
+  sleepAnnouncement.textContent = '';
   setPlaying(true);
   beginSync();
   resumeNote.textContent = '';
@@ -583,6 +626,7 @@ audio.addEventListener('pause', () => {
 });
 audio.addEventListener('timeupdate', () => {
   updateTimes();
+  if (sleepTimer.check()) return;
   if (!positionReady || !current) return;
   if (audio.currentTime < 0.5 && latestSeconds >= 1) return;
   latestSeconds = audio.currentTime;
@@ -608,10 +652,12 @@ audio.addEventListener('error', () => {
 
 window.addEventListener('pagehide', flushPosition);
 document.addEventListener('visibilitychange', () => {
+  if (sleepTimer.check()) return;
   if (document.visibilityState === 'hidden') flushPosition();
   else refreshPaused();
 });
-window.addEventListener('focus', refreshPaused);
+window.addEventListener('focus', () => { if (!sleepTimer.check()) refreshPaused(); });
+window.addEventListener('pageshow', () => sleepTimer.refresh());
 window.addEventListener('online', () => { if (syncWritable) flushPosition(); else refreshPaused(); });
 
 if (window.JtgSession) {
@@ -620,6 +666,7 @@ if (window.JtgSession) {
     logout.hidden = !data?.enabled;
   }).catch(() => {});
   window.addEventListener('jtg:session-expired', () => {
+    sleepTimer.clear();
     syncWritable = false;
     clearTimeout(syncTimer);
     syncEpoch += 1;
@@ -634,6 +681,7 @@ if (window.JtgSession) {
     try {
       const response = await apiFetch('/api/auth/logout', { method: 'POST' });
       if (!response.ok) throw new Error('退出失败，请重试');
+      sleepTimer.clear();
       syncWritable = false;
       clearTimeout(syncTimer);
       audio.removeAttribute('src');
@@ -659,6 +707,7 @@ if ('mediaSession' in navigator) {
   }
 }
 
+sleepTimer.restore();
 loadEpisodes().then(() => {
   const lastId = localStorage.getItem(CURRENT_KEY);
   const recent = [...episodes].filter((item) => item.progress?.updatedAt)
