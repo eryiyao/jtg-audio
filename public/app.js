@@ -466,6 +466,7 @@ document.getElementById('pick-file').addEventListener('click', () => {
 fileInput.addEventListener('change', () => {
   const chosen = fileInput.files[0];
   fileName.textContent = chosen ? chosen.name : '选择音频文件';
+  uploadStatus.textContent = '';
 });
 
 form.addEventListener('submit', async (event) => {
@@ -497,7 +498,7 @@ form.addEventListener('submit', async (event) => {
     uploadBtn.disabled = false;
     closeUpload.disabled = false;
     document.getElementById('pick-file').disabled = false;
-    uploadBtn.textContent = '上传到我的音频';
+    uploadBtn.textContent = '上传音频';
   }
 });
 
@@ -516,7 +517,10 @@ document.getElementById('back-btn').addEventListener('click', () => seekTo(audio
 document.getElementById('forward-btn').addEventListener('click', () => seekTo(audio.currentTime + 15));
 speedEl.addEventListener('change', () => {
   const rate = Number(speedEl.value);
-  if ([1, 1.25, 1.5, 2].includes(rate)) audio.playbackRate = rate;
+  if ([1, 1.25, 1.5, 2].includes(rate)) {
+    audio.playbackRate = rate;
+    document.getElementById('speed-value').textContent = `${rate}×`;
+  }
 });
 
 playBtn.addEventListener('click', async () => {

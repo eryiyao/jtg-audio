@@ -32,20 +32,25 @@
   </div>
 
   <dialog id="upload-dialog" aria-labelledby="upload-title">
-    <div class="dialog-heading"><div><h2 id="upload-title">添加音频</h2></div><button id="close-upload" class="icon-button" type="button" aria-label="关闭上传窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
+    <div class="dialog-heading"><h2 id="upload-title">添加音频</h2><button id="close-upload" class="icon-button" type="button" aria-label="关闭上传窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
     <form id="upload-form">
       <input id="file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.opus,.aac,.flac,.webm" class="sr-only" aria-label="音频文件">
-      <button id="pick-file" class="file-picker" type="button"><span class="upload-symbol" aria-hidden="true"><svg class="icon"><use href="/assets/icons.svg#upload"/></svg></span><strong id="file-name">选择音频文件</strong><span>MP3、M4A、WAV 等 · 最大 200 MB</span></button>
+      <div class="file-field">
+        <p class="field-label">音频文件</p>
+        <button id="pick-file" class="file-picker" type="button"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#upload"/></svg><span class="file-copy"><strong id="file-name">选择音频文件</strong><span class="file-help"><span>MP3、M4A、WAV 等</span><span>最大 200 MB</span></span></span></button>
+      </div>
       <label class="title-label">音频标题 <span>选填</span><input name="title" type="text" maxlength="120" autocomplete="off" placeholder="不填就使用文件名"></label>
-      <button id="upload-btn" class="primary submit-button" type="submit">上传到我的音频</button>
-      <p id="upload-status" class="status" role="status"></p>
+      <div class="upload-actions">
+        <button id="upload-btn" class="primary submit-button" type="submit">上传音频</button>
+        <p id="upload-status" class="status" role="status"></p>
+      </div>
     </form>
   </dialog>
 
   <section id="player" class="player" aria-label="音频播放器" hidden>
     <div class="player-top">
       <div class="player-info"><span id="play-state" class="sr-only">准备收听</span><p id="now-title" class="now-title"></p></div>
-      <label class="speed-control"><span class="sr-only">播放速度</span><select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron"/></svg></label>
+      <label class="speed-control"><span class="sr-only">播放速度</span><span id="speed-value" aria-hidden="true">1×</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron"/></svg><select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
     </div>
     <div class="scrub">
       <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" disabled>
