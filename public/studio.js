@@ -4,6 +4,7 @@
   const DRAFT_KEY = 'jtg-studio-unsaved-v1';
   const connectionStore = JtgGeminiConnection.create({ device: () => localStorage, session: () => sessionStorage, validate: JtgGemini.key });
   const draftSelects = ['draft-target', 'draft-voice'].map(id => JtgStudioSelect.enhance($(id)));
+  const syncProjectSelect = JtgStudioSelect.enhance($('project-select'));
   let config, project, projects = [], selected = 1, busy = false, poll, generation = 0;
   let geminiKey = '', geminiRemembered = false, connectionVersion = 0, pendingUrl = null;
   let draftId = crypto.randomUUID();
@@ -63,6 +64,7 @@
     if (!projects.length) picker.add(new Option('还没有制作任务', ''));
     for (const p of projects) picker.add(new Option(`${p.title} · ${p.status === 'complete' && p.episodeId ? '已入库' : `${p.reviewed}/${p.total} 段已核对`}`, p.id));
     if (project) picker.value = project.id;
+    syncProjectSelect();
   }
   function accept(next) {
     project = next;

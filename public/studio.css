@@ -34,7 +34,7 @@
 .studio-page select:hover { border-color: #b9b4a7; }
 .studio-page select:focus-visible, .studio-page input:focus-visible, .studio-page textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #a84e3012; }
 .studio-page select:disabled { opacity: .6; cursor: default; }
-#project-select { flex: 1; min-width: 0; text-overflow: ellipsis; }
+#project-select, #project-select-trigger { flex: 1; min-width: 0; text-overflow: ellipsis; }
 .studio-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
 .welcome { padding: 32px; }
 .studio-page h2 { font-size: 19px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
@@ -111,6 +111,7 @@
 .studio-page button.custom-select-trigger:focus-visible, .studio-page button.custom-select-trigger[aria-expanded=true] { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #a84e3012; }
 .studio-page button.custom-select-trigger:active { transform: none; }
 .custom-select-menu { position: fixed; inset: auto; margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; list-style: none; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: 0 8px 24px #2c29261a, 0 2px 6px #2c29260a; z-index: 30; transform-origin: top center; animation: select-reveal .16s ease-out; }
+.custom-select-menu [role=option] > span:first-child { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .custom-select-menu::backdrop { background: transparent; }
 .custom-select-menu [role=option] { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 9px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; line-height: 22px; }
 .custom-select-menu [aria-selected=true] { color: var(--accent); }

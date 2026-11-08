@@ -1,6 +1,6 @@
 'use strict';
-// Native selects remain the form's source of truth. The two small option lists
-// share one anchored popup, keyboard behavior and visual treatment.
+// Native selects remain the source of truth. Static and refreshed task lists
+// share anchored popups, keyboard behavior and visual treatment.
 (() => {
   let opened = null;
   function enhance(select) {
@@ -16,24 +16,30 @@
     menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-labelledby', label.id);
     menu.setAttribute('popover', 'manual'); menu.hidden = true;
     trigger.setAttribute('aria-controls', menu.id);
-    const options = Array.from(select.options);
-    const items = options.map((option, index) => {
-      const li = document.createElement('li'), text = document.createElement('span'), check = document.createElement('span');
-      li.id = `${select.id}-option-${index}`; li.setAttribute('role', 'option');
-      text.textContent = option.textContent; check.textContent = '✓'; check.className = 'option-check'; check.setAttribute('aria-hidden', 'true');
-      li.append(text, check); menu.append(li);
-      li.addEventListener('pointermove', () => activate(index));
-      li.addEventListener('click', () => choose(index));
-      return li;
-    });
+    let options = [], items = [], signature = '';
     let active = select.selectedIndex, visible = false, typed = '', typedAt = 0;
     const dialog = select.closest('dialog');
-    field.append(trigger, menu); select.hidden = true; label.htmlFor = trigger.id;
+    select.after(trigger, menu); select.hidden = true; label.htmlFor = trigger.id;
     function sync() {
-      value.textContent = options[select.selectedIndex]?.textContent || '';
-      trigger.disabled = select.disabled;
+      const next = Array.from(select.options);
+      const nextSignature = JSON.stringify(next.map(option => [option.value, option.textContent]));
+      if (nextSignature !== signature) {
+        close(); signature = nextSignature; options = next; menu.replaceChildren();
+        items = options.map((option, index) => {
+          const li = document.createElement('li'), text = document.createElement('span'), check = document.createElement('span');
+          li.id = `${select.id}-option-${index}`; li.setAttribute('role', 'option');
+          text.textContent = option.textContent; check.textContent = '✓'; check.className = 'option-check'; check.setAttribute('aria-hidden', 'true');
+          li.append(text, check); menu.append(li);
+          li.addEventListener('pointermove', () => activate(index));
+          li.addEventListener('click', () => choose(index));
+          return li;
+        });
+      }
+      value.textContent = next[select.selectedIndex]?.textContent || '';
+      trigger.title = value.textContent;
+      trigger.disabled = select.disabled || !options.length;
       items.forEach((li, i) => li.setAttribute('aria-selected', String(i === select.selectedIndex)));
-      if (select.disabled) close();
+      if (trigger.disabled) close();
     }
     function position() {
       if (!visible) return;
@@ -43,9 +49,14 @@
       menu.style.maxHeight = `${Math.max(44, Math.min(220, viewportBottom - rect.bottom - 20))}px`;
     }
     function activate(index, scroll = false) {
+      if (!items[index]) return;
       active = index; items.forEach((li, i) => li.classList.toggle('is-active', i === index));
       trigger.setAttribute('aria-activedescendant', items[index].id);
-      if (scroll) items[index].scrollIntoView({ block: 'nearest' });
+      if (scroll) {
+        const item = items[index];
+        if (item.offsetTop < menu.scrollTop) menu.scrollTop = item.offsetTop;
+        else if (item.offsetTop + item.offsetHeight > menu.scrollTop + menu.clientHeight) menu.scrollTop = item.offsetTop + item.offsetHeight - menu.clientHeight;
+      }
     }
     function open() {
       if (trigger.disabled || visible) return;
@@ -56,7 +67,7 @@
       if (dialog && bottom - rect.bottom < 172) dialog.scrollTop += 172 - (bottom - rect.bottom);
       menu.hidden = false; position();
       if (typeof menu.showPopover === 'function') menu.showPopover();
-      trigger.setAttribute('aria-expanded', 'true'); activate(select.selectedIndex);
+      trigger.setAttribute('aria-expanded', 'true'); activate(select.selectedIndex, true);
     }
     function close() {
       if (!visible) return;
@@ -96,7 +107,7 @@
     dialog?.addEventListener('cancel', event => { if (visible) { event.preventDefault(); close(); } });
     select.addEventListener('change', sync);
     select.form?.addEventListener('reset', () => queueMicrotask(sync));
-    new MutationObserver(sync).observe(select, { attributes: true, attributeFilter: ['disabled'] });
+    new MutationObserver(sync).observe(select, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'selected', 'label', 'value'] });
     sync(); return sync;
   }
   window.JtgStudioSelect = { enhance };

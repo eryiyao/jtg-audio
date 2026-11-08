@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULT_STYLE = '标准普通话，沉稳自然的成年男声，语速适中，像平静讲述文章，不用播音腔。段落间自然停顿，忠实逐字朗读，不增删正文，保持音色、音量和语速稳定。';
+const DEFAULT_STYLE = '平静自然地朗读，语速适中，按标点自然停顿。';
 
 // Keep every character, including whitespace, so concatenating the segments is
 // exactly the saved source. Prefer paragraph/sentence boundaries near the target.
