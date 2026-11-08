@@ -46,7 +46,8 @@ function loadConfig(overrides = {}) {
   const publicOrigin = overrides.publicOrigin || process.env.PUBLIC_ORIGIN || null;
   const secureCookies = overrides.secureCookies ?? (process.env.NODE_ENV === 'production' || publicOrigin?.startsWith('https://') || false);
   return { root, dataDir, uploadDir, dbPath, maxUploadMb, port, host, authPasswordFile,
-    authUser: overrides.authUser || process.env.AUTH_USER || 'yao', publicOrigin, secureCookies, authNow: overrides.authNow };
+    authUser: overrides.authUser || process.env.AUTH_USER || 'yao', publicOrigin, secureCookies, authNow: overrides.authNow,
+    studioNow: overrides.studioNow };
 }
 
 function extensionOf(filename) {

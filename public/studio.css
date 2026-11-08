@@ -9,12 +9,31 @@
 .studio-page .button-link { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--line); }
 .studio-page .button-link.primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
 .studio-page button:disabled { cursor: default; opacity: .45; }
-.studio-page :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.studio-page :focus-visible { outline: 2px solid #a84e3080; outline-offset: 2px; }
 .studio-intro { font-size: 14px; color: var(--muted); margin: 9px 0 28px; }
 .studio-notice { background: var(--tint); color: var(--accent); border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; overflow-wrap: anywhere; }
+.gemini-connection { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; margin: 0 0 24px; border: 1px solid var(--line); border-radius: 14px; background: #edeedf66; }
+.gemini-connection > div { min-width: 0; }
+.gemini-connection strong { font-size: 13px; font-weight: 600; }
+#gemini-state { display: inline-block; margin-left: 10px; font-size: 11px; color: var(--muted); }
+.gemini-connection p, .connection-help { font-size: 12px; color: var(--muted); line-height: 1.9; }
+.gemini-connection p { margin-top: 3px; }
+.gemini-connection > button { flex-shrink: 0; background: var(--surface) !important; border: 1px solid var(--line); }
+.generation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0 8px; }
+.generation-status { font-size: 12px; color: var(--accent); line-height: 1.9; overflow-wrap: anywhere; }
+.generation-status:empty { display: none; }
+.gemini-dialog { width: min(560px,calc(100% - 32px)); }
+#gemini-form { gap: 12px; margin-top: 18px; }
+#gemini-form .review-checkbox { min-height: 36px; padding: 5px 0; }
+#gemini-key { display: block; width: 100%; height: 46px; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; background: var(--surface); font-size: 16px; }
+.connection-actions { display: flex; gap: 10px; margin-top: 4px; }
+.connection-help strong { font-weight: 500; color: var(--ink); }
 .project-switch { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .project-switch label { font-size: 13px; white-space: nowrap; }
-.studio-page select { height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; background: var(--surface); color: var(--ink); font-size: 14px; }
+.studio-page select { appearance: none; -webkit-appearance: none; height: 46px; border: 1px solid var(--line); border-radius: 11px; padding: 0 46px 0 14px; background-color: var(--surface); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236A7064' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 15px center; background-size: 16px; color: var(--ink); font-size: 14px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.studio-page select:hover { border-color: #b9b4a7; }
+.studio-page select:focus-visible, .studio-page input:focus-visible, .studio-page textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #a84e3012; }
+.studio-page select:disabled { opacity: .6; cursor: default; }
 #project-select { flex: 1; min-width: 0; text-overflow: ellipsis; }
 .studio-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
 .welcome { padding: 32px; }
@@ -72,13 +91,24 @@
 .review-checkbox { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; font-size: 13px; min-height: 44px; padding: 10px 0; }
 .review-checkbox input { margin: 4px 0 0; width: 17px; height: 17px; accent-color: var(--accent); flex: 0 0 17px; }
 .save-note { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
-.new-dialog { width: min(760px,calc(100% - 32px)); max-width: calc(100% - 32px); }
-#new-form { gap: 14px; }
-#draft-text { height: 240px; min-height: 180px; }
+.new-dialog { width: min(760px,calc(100% - 32px)); max-width: calc(100% - 32px); padding: 28px; }
+.new-dialog .dialog-heading { margin-bottom: 24px; }
+.new-dialog .dialog-heading .icon-button { padding: 0; background: transparent; right: -8px; font-size: 23px; }
+.new-dialog .dialog-heading .icon-button:hover { background: var(--bg); }
+#new-form { gap: 20px; }
+.draft-text-field { display: grid; gap: 8px; }
+.draft-text-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+#draft-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#draft-text { height: clamp(180px,30vh,260px); min-height: 160px; }
 .draft-options { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .draft-options label { display: grid; gap: 8px; font-size: 13px; }
 #draft-style { min-height: 120px; }
-.draft-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.draft-actions { display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: -28px; padding: 14px 0 8px; margin: -6px 0 -8px; background: var(--surface); border-top: 1px solid var(--line); }
+.studio-page button { transition: background .15s, opacity .15s, box-shadow .15s; }
+.studio-page button:not(:disabled):active { transform: translateY(1px); }
+.draft-style { padding: 8px 12px; border-radius: 11px; background: var(--bg); }
+.draft-style summary { color: var(--body); }
+.welcome .welcome-action { margin-top: 20px; }
 .preview-result { border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; max-height: 170px; overflow-y: auto; }
 .preview-result p { margin-bottom: 8px; }
 .preview-result ol { margin: 0; padding-left: 28px; }
@@ -88,6 +118,8 @@
   .studio-heading { margin-top: 6px; }
   .studio-heading h1 { font-size: 24px; }
   .studio-intro { margin-bottom: 20px; }
+  .gemini-connection { flex-wrap: wrap; gap: 10px; padding: 14px; }
+  .gemini-connection > button { width: 100%; }
   .project-switch { gap: 8px; }
   .project-switch label { display: none; }
   .project-switch button { padding: 8px 10px; }
@@ -106,5 +138,6 @@
   .welcome { padding: 24px; }
   .draft-options { grid-template-columns: 1fr; }
   .new-dialog { padding: 20px; }
-  .draft-actions { flex-wrap: wrap; }
+  .draft-actions { flex-wrap: wrap; bottom: -20px; }
+  .draft-actions > button { flex: 1; }
 }

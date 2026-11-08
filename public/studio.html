@@ -14,12 +14,14 @@
     <a class="back-link" href="/">← 我的音频</a>
     <header class="studio-heading"><div><p class="eyebrow">文字 → 声音</p><h1>制作音频</h1></div><button id="new-project" class="primary" type="button">新建任务</button></header>
     <p class="studio-intro">把长文章拆成小段，慢慢做，也能接着做。</p>
+    <section class="gemini-connection" aria-label="Gemini 连接"><div><strong>Gemini 自动生成</strong><span id="gemini-state">未连接</span><p>连接免费项目后，逐段生成并自动保存。生成时请保持本页打开。</p></div><button id="connect-gemini" type="button">连接 Gemini</button></section>
     <div id="notice" class="studio-notice" role="status" aria-live="polite" hidden></div>
-    <div class="project-switch"><label for="project-select">制作任务</label><select id="project-select"><option value="">正在读取…</option></select><button id="refresh-project" type="button" title="重新载入云端进度">刷新进度</button></div>
+    <div id="project-switch" class="project-switch"><label for="project-select">制作任务</label><select id="project-select"><option value="">正在读取…</option></select><button id="refresh-project" type="button" title="重新载入云端进度">刷新进度</button></div>
     <section id="studio-empty" class="studio-card welcome" hidden>
       <h2>一篇文章，一步步变成音频</h2>
-      <ol class="workflow"><li><b>01</b><strong>粘贴正文</strong><span>沿段落与句末分段，原文完整保留。</span></li><li><b>02</b><strong>在 Gemini 生成</strong><span>复制分段，用固定的声音与朗读要求生成。</span></li><li><b>03</b><strong>检查后入库</strong><span>上传、对照试听，一键合并成完整 MP3。</span></li></ol>
-      <p class="muted">使用 Gemini 免费网页，需要登录你自己的 Google 账号。这里不会调用付费服务。</p>
+      <ol class="workflow"><li><b>01</b><strong>粘贴正文</strong><span>沿段落与句末分段，原文完整保留。</span></li><li><b>02</b><strong>自动生成声音</strong><span>固定声音和朗读要求，每段生成后自动保存。</span></li><li><b>03</b><strong>检查后入库</strong><span>对照试听，一键合并成完整 MP3。</span></li></ol>
+      <p class="muted">使用 Gemini 免费项目，额度不足时暂停。也可以继续使用免费网页生成，再手动上传。</p>
+      <button id="create-first" class="primary welcome-action" type="button">开始制作第一篇</button>
     </section>
     <section id="workspace" hidden>
       <div class="project-summary studio-card">
@@ -27,21 +29,23 @@
         <div class="project-actions"><button id="merge-project" class="primary" type="button">合并并加入音频库</button><a id="open-result" class="button-link primary" href="/" hidden>去音频库收听 →</a><button id="delete-project" class="text-button" type="button">删除制作草稿</button></div>
       </div>
       <p id="merge-state" class="merge-state" role="status"></p>
+      <div class="generation-actions"><button id="generate-missing" class="primary" type="button">自动生成未完成分段</button><button id="pause-generation" type="button" hidden>暂停生成</button><button id="retry-save" type="button" hidden>重试保存本段</button><a id="download-pending" class="button-link" hidden>下载本段备份</a><button id="discard-pending" class="text-button" type="button" hidden>放弃本次结果</button></div>
+      <p id="generation-status" class="generation-status" role="status" aria-live="polite"></p>
       <div class="studio-grid">
         <aside class="studio-card segment-sidebar" aria-label="文章分段"><div class="sidebar-heading"><h3>文章分段</h3><span id="segment-count"></span></div><ol id="segment-list"></ol></aside>
         <section class="studio-card segment-detail" aria-labelledby="segment-title">
           <div class="segment-heading"><div><p id="segment-status" class="eyebrow"></p><h2 id="segment-title"></h2></div><div class="step-nav"><button id="previous-segment" aria-label="上一段" type="button">←</button><button id="next-segment" aria-label="下一段" type="button">→</button></div></div>
-          <div class="generation-profile"><span>固定声音 <strong id="voice-name"></strong></span><button id="copy-style" type="button">复制朗读要求</button><details><summary>查看朗读要求与生成方法</summary><p id="style-text"></p><p>打开 Gemini 后，使用语音生成，选择上面的声音，把朗读要求贴入 Style，把本段正文贴入 Text。每段都沿用这套设置；生成后下载音频，再回到这里上传。</p><p>免费额度由 Google 账号决定，用完后可以下次继续。不要把标题、段号或操作提示混入正文。</p></details></div>
+          <div class="generation-profile"><span>固定声音 <strong id="voice-name"></strong></span><button id="copy-style" type="button">复制朗读要求</button><details><summary>朗读要求与手动生成方法</summary><p id="style-text"></p><p>打开 Gemini 后，使用语音生成，选择上面的声音，把朗读要求贴入 Style，把本段正文贴入 Text。每段都沿用这套设置；生成后下载音频，再回到这里上传。</p><p>免费额度由 Google 账号决定，用完后可以下次继续。不要把标题、段号或操作提示混入正文。</p></details></div>
           <label class="sr-only" for="segment-text">本段正文</label><textarea id="segment-text" readonly></textarea>
-          <div class="segment-tools"><button id="copy-text" class="primary" type="button">复制本段正文</button><a id="open-gemini" class="button-link" href="https://aistudio.google.com/generate-speech" target="_blank" rel="noopener noreferrer">打开免费 Gemini ↗</a><button id="download-text" class="text-button" type="button">下载本段文字</button></div>
+          <div class="segment-tools"><button id="generate-segment" class="primary" type="button">生成本段音频</button><button id="copy-text" type="button">复制本段正文</button><a id="open-gemini" class="button-link" href="https://aistudio.google.com/generate-speech" target="_blank" rel="noopener noreferrer">免费网页 ↗</a><button id="download-text" class="text-button" type="button">下载文字</button></div>
           <div class="audio-step">
-            <div class="upload-segment-heading"><h3>上传与核对</h3><button id="pick-segment" type="button">上传本段音频</button></div>
+            <div class="upload-segment-heading"><h3>试听与核对</h3><button id="pick-segment" type="button">上传本段音频</button></div>
             <input id="segment-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.mp4,.ogg,.opus,.aac,.flac,.webm" hidden>
             <p id="upload-help" class="muted">生成完成后，把下载的音频放到这一段。</p>
             <div id="audio-review" hidden>
               <p id="check-result" class="check-result"></p><ul id="audio-warnings" class="audio-warnings"></ul>
               <label class="audio-label">本段音频<audio id="segment-audio" controls preload="metadata"></audio></label>
-              <details id="comparison"><summary>对照上一段的声音</summary><p class="muted">先听上一段结尾，再听本段开头。声音明显不一样时，只需重新生成并上传本段。</p><button id="listen-previous" type="button">听上一段最后 15 秒</button><audio id="comparison-audio" controls preload="none"></audio></details>
+              <details id="comparison"><summary>对照上一段的声音</summary><p class="muted">先听上一段结尾，再听本段开头。声音明显不一样时，只需重新生成本段。</p><button id="listen-previous" type="button">听上一段最后 15 秒</button><audio id="comparison-audio" controls preload="none"></audio></details>
               <p class="review-help">文件检查不等于正文核对：请留意漏读、重读、开头结尾，以及是否像换了一个声音。</p>
               <label class="review-checkbox"><input id="reviewed" type="checkbox"><span>已试听核对，正文完整，声音与前后段一致</span></label>
             </div>
@@ -55,7 +59,7 @@
     <div class="dialog-heading"><h2 id="new-title">新建制作任务</h2><button id="close-new" class="icon-button" aria-label="关闭新建窗口" type="button">×</button></div>
     <form id="new-form">
       <label class="title-label">文章标题<input id="draft-title" type="text" required maxlength="120" placeholder="给这篇音频起个名字"></label>
-      <label class="title-label" for="draft-text">朗读正文 <span>最多 100,000 字</span></label><textarea id="draft-text" required maxlength="200000" placeholder="粘贴准备朗读的完整正文，先去掉不需要读出的链接、批注和表格。"></textarea>
+      <div class="draft-text-field"><div class="draft-text-heading"><label class="title-label" for="draft-text">朗读正文</label><span id="draft-count">0 / 100,000 字</span></div><textarea id="draft-text" required maxlength="200000" placeholder="粘贴准备朗读的完整正文，先去掉不需要读出的链接、批注和表格。" aria-describedby="draft-count"></textarea></div>
       <div class="draft-options"><label>每段长度<select id="draft-target"><option value="800">约 800 字 · 更方便重做</option><option value="1000" selected>约 1,000 字 · 推荐</option><option value="1200">约 1,200 字</option></select></label><label>固定声音<select id="draft-voice"><option>Charon</option><option>Orus</option><option>Algenib</option></select></label></div>
       <details class="draft-style"><summary>朗读要求</summary><textarea id="draft-style" maxlength="2000" required aria-label="固定朗读要求"></textarea><p class="muted">任务保存后固定正文和声音设置，避免各段用到不同版本。需要改稿时新建任务。</p></details>
       <div id="preview-result" class="preview-result" hidden></div>
@@ -63,7 +67,21 @@
       <div class="draft-actions"><button id="preview-draft" type="button">预览分段</button><button id="create-project" class="primary" type="submit">分段并保存任务</button></div>
     </form>
   </dialog>
+  <dialog id="gemini-dialog" class="gemini-dialog" aria-labelledby="gemini-title">
+    <div class="dialog-heading"><h2 id="gemini-title">连接 Gemini 免费项目</h2><button id="close-gemini" class="icon-button" aria-label="关闭 Gemini 连接窗口" type="button">×</button></div>
+    <p class="connection-help">在 <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio 获取 API Key ↗</a>，确认对应项目显示 <strong>Free Tier</strong>，并且没有启用结算。网页免费额度与接口额度是分开的。</p>
+    <form id="gemini-form" autocomplete="off">
+      <label class="title-label">Gemini API Key<input id="gemini-key" type="password" required minlength="20" maxlength="200" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="粘贴免费项目的 API Key"></label>
+      <label class="review-checkbox"><input id="confirm-free" type="checkbox" required><span>我确认这个密钥属于未启用结算的免费项目</span></label>
+      <label class="review-checkbox"><input id="remember-gemini" type="checkbox"><span>在本标签页记住连接，刷新后不用重填</span></label>
+      <p class="connection-help">密钥只在当前浏览器使用，不保存到 JTG Audio 服务器。正文会发送给 Google，免费服务可能用于改进其产品。工具无法读取项目账单；请勿把该项目升级为付费项目。</p>
+      <div class="connection-actions"><button id="submit-gemini" class="primary" type="submit">检查并连接</button><button id="disconnect-gemini" type="button" hidden>断开连接</button></div>
+      <p id="connection-status" class="status" role="status"></p>
+    </form>
+  </dialog>
   <script src="/session.js"></script>
+  <script src="/gemini-client.js"></script>
+  <script src="/generation-runner.js"></script>
   <script src="/studio.js"></script>
 </body>
 </html>

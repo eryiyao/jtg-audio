@@ -83,7 +83,7 @@ test('anonymous access reaches only login assets; private APIs, audio and applic
     assert.equal((await request('/healthz')).status, 200);
     const studio = await request('/studio.html');
     assert.equal(studio.status, 303); assert.equal(studio.headers.get('location'), '/login?next=studio');
-    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/sleep-timer.js', '/studio.js', '/api/studio/projects', '/api/studio/config', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
+    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/sleep-timer.js', '/studio.js', '/gemini-client.js', '/generation-runner.js', '/api/studio/projects', '/api/studio/config', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
       const response = await request(url);
       assert.equal(response.status, 401, url);
       assert.equal(response.headers.get('www-authenticate'), null);

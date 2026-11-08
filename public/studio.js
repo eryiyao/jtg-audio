@@ -2,11 +2,13 @@
 (() => {
   const $ = id => document.getElementById(id);
   const DRAFT_KEY = 'jtg-studio-unsaved-v1';
+  const GEMINI_SESSION_KEY = 'jtg-gemini-tab-key-v1';
   let config, project, projects = [], selected = 1, busy = false, poll, generation = 0;
+  let geminiKey = '', pendingUrl = null;
   let draftId = crypto.randomUUID();
   const count = text => Array.from(text).length;
   const duration = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
-  const editable = () => project && project.status !== 'merging' && !(project.status === 'complete' && project.episodeId);
+  const editable = () => project && project.status !== 'merging' && project.generation?.status !== 'running' && !(project.status === 'complete' && project.episodeId);
   const segment = () => project?.segments.find(s => s.index === selected);
   const url = suffix => `/api/studio/projects/${project.id}${suffix || ''}`;
   function notice(message = '') { $('notice').textContent = message; $('notice').hidden = !message; }
@@ -21,16 +23,19 @@
   }
   function setBusy(value) {
     busy = value;
-    for (const id of ['new-project', 'project-select', 'refresh-project', 'delete-project', 'copy-style', 'copy-text', 'pick-segment', 'reviewed', 'merge-project', 'previous-segment', 'next-segment']) $(id).disabled = value;
+    for (const id of ['new-project', 'create-first', 'project-select', 'refresh-project', 'delete-project', 'copy-style', 'copy-text', 'pick-segment', 'reviewed', 'merge-project', 'previous-segment', 'next-segment', 'connect-gemini', 'generate-missing', 'generate-segment']) $(id).disabled = value;
     document.querySelectorAll('#segment-list button').forEach(b => { b.disabled = value; });
     if (!value && project) applyDisabled();
   }
   function applyDisabled() {
-    const writable = editable();
+    const writable = editable() && !runner.pending;
+    for (const id of ['new-project', 'project-select']) $(id).disabled = !!runner.pending;
     $('pick-segment').disabled = !writable || !config.mediaReady;
     $('reviewed').disabled = !writable || !segment()?.audioUrl;
     $('merge-project').disabled = !writable || !config.mediaReady || project.reviewed !== project.total;
-    $('delete-project').disabled = project.status === 'merging';
+    $('delete-project').disabled = project.status === 'merging' || project.generation?.status === 'running' || !!runner.pending;
+    $('generate-missing').disabled = !writable || !config.mediaReady || project.uploaded === project.total || !!runner.pending;
+    $('generate-segment').disabled = !writable || !config.mediaReady || !!runner.pending;
     $('previous-segment').disabled = selected === 1;
     $('next-segment').disabled = selected === project.total;
   }
@@ -53,6 +58,7 @@
   }
   function renderPicker() {
     const picker = $('project-select'); picker.replaceChildren();
+    $('project-switch').hidden = !projects.length;
     if (!projects.length) picker.add(new Option('还没有制作任务', ''));
     for (const p of projects) picker.add(new Option(`${p.title} · ${p.status === 'complete' && p.episodeId ? '已入库' : `${p.reviewed}/${p.total} 段已核对`}`, p.id));
     if (project) picker.value = project.id;
@@ -70,8 +76,15 @@
     selected = Math.max(1, Math.min(selected, project.total));
     const s = segment();
     $('project-title').textContent = project.title;
-    $('project-progress').textContent = `${project.total} 段 · ${project.uploaded} 段已上传 · ${project.reviewed} 段已核对 · 草稿音频 ${(project.sizeBytes / 1024 ** 2).toFixed(1)} MB`;
+    $('project-progress').textContent = `${project.total} 段 · ${project.uploaded} 段已保存 · ${project.reviewed} 段已核对 · 草稿音频 ${(project.sizeBytes / 1024 ** 2).toFixed(1)} MB`;
     $('project-bar').max = project.total; $('project-bar').value = project.reviewed;
+    const generating = project.generation?.status === 'running';
+    $('pause-generation').hidden = !generating;
+    $('pause-generation').disabled = false;
+    $('pause-generation').textContent = runner.running ? '暂停生成' : '停止另一页面的生成';
+    $('generate-missing').textContent = generating ? '正在自动生成…' : project.uploaded ? '继续生成未完成分段' : '自动生成未完成分段';
+    $('generate-segment').textContent = s.audioUrl ? '重新生成本段' : '生成本段音频';
+    if (!runner.running && !runner.pending) $('generation-status').textContent = project.generation?.message || (generating ? `另一页面正在生成${project.generation.currentIndex ? `第 ${project.generation.currentIndex} 段` : '中'}，已保存的分段会显示在这里。` : '自动生成需要连接免费项目；生成后仍需试听核对正文和声音。');
     const complete = project.status === 'complete' && project.episodeId;
     $('merge-project').hidden = !!complete; $('open-result').hidden = !complete;
     $('merge-project').textContent = project.status === 'merging' ? '正在合并…' : '合并并加入音频库';
@@ -105,9 +118,9 @@
     const previous = project.segments.find(item => item.index === selected - 1);
     $('comparison').hidden = !previous?.audioUrl;
     setAudio($('comparison-audio'), previous?.audioUrl || null);
-    $('save-note').textContent = `云端已保存 · ${new Date(project.updatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · 可以关闭页面后继续`;
+    $('save-note').textContent = `云端已保存 · ${new Date(project.updatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${generating ? '正在生成时，请保持页面打开' : runner.pending ? '本段还有未保存的结果，请先处理' : '可以关闭页面后继续'}`;
     if (!busy) applyDisabled();
-    if (project.status === 'merging') schedulePoll();
+    if (project.status === 'merging' || (generating && !runner.running)) schedulePoll();
   }
   function schedulePoll() {
     const id = project.id;
@@ -132,6 +145,65 @@
     const id = project?.id || location.hash.slice(1);
     await load(projects.some(p => p.id === id) ? id : projects[0]?.id);
   }
+  function pendingAudio(item) {
+    if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+    pendingUrl = item ? URL.createObjectURL(item.blob) : null;
+    $('retry-save').hidden = !item; $('download-pending').hidden = !item; $('discard-pending').hidden = !item;
+    if (item) { $('download-pending').href = pendingUrl; $('download-pending').download = `Gemini_第${item.index}段_未保存.wav`; }
+    else $('download-pending').removeAttribute('href');
+  }
+  const runner = new JtgGenerationRunner({ api, generate: JtgGemini.generate, getKey: () => geminiKey,
+    onProject: accept, onStatus: message => { $('generation-status').textContent = message; }, onPending: pendingAudio,
+    onFinish: () => { if (project) render(); } });
+  function renderConnection() {
+    $('gemini-state').textContent = geminiKey ? '已连接 · 免费项目由你确认' : '未连接';
+    $('connect-gemini').textContent = geminiKey ? '连接设置' : '连接 Gemini';
+    $('disconnect-gemini').hidden = !geminiKey;
+  }
+  function openConnection() { $('gemini-key').value = ''; $('confirm-free').checked = false; $('connection-status').textContent = ''; renderConnection(); $('gemini-dialog').showModal(); $('gemini-key').focus(); }
+  $('connect-gemini').addEventListener('click', openConnection);
+  $('close-gemini').addEventListener('click', () => $('gemini-dialog').close());
+  $('gemini-dialog').addEventListener('close', () => { $('gemini-key').value = ''; });
+  $('disconnect-gemini').addEventListener('click', () => {
+    geminiKey = ''; try { sessionStorage.removeItem(GEMINI_SESSION_KEY); } catch {}
+    renderConnection(); $('gemini-dialog').close(); notice('已断开 Gemini，云端的制作进度仍然保留。');
+  });
+  $('gemini-form').addEventListener('submit', async event => {
+    event.preventDefault(); if ($('submit-gemini').disabled) return;
+    $('submit-gemini').disabled = true; $('disconnect-gemini').disabled = true; $('close-gemini').disabled = true;
+    $('connection-status').textContent = '正在检查与 Google 的连接，不会生成音频…';
+    const candidate = $('gemini-key').value.trim();
+    try {
+      if (!$('confirm-free').checked) throw new Error('请先确认对应项目没有启用结算');
+      await JtgGemini.connect(candidate);
+      geminiKey = candidate;
+      try {
+        if ($('remember-gemini').checked) sessionStorage.setItem(GEMINI_SESSION_KEY, geminiKey);
+        else sessionStorage.removeItem(GEMINI_SESSION_KEY);
+      } catch { notice('已连接。本标签页无法记住连接，刷新后需重新填写密钥。'); }
+      renderConnection(); $('gemini-dialog').close(); notice('Gemini 已连接，可以开始自动生成。免费额度不足时会暂停。');
+    } catch (e) { $('connection-status').textContent = e.message; }
+    finally { $('gemini-key').value = ''; $('submit-gemini').disabled = false; $('disconnect-gemini').disabled = false; $('close-gemini').disabled = false; }
+  });
+  function startGeneration(mode) {
+    if (!geminiKey) return openConnection();
+    const replacing = mode === 'single' && !!segment().audioUrl;
+    if (replacing && !confirm(`重新生成第 ${selected} 段？新音频保存并检查成功后才会替换旧音频，并需要重新试听核对。`)) return;
+    action(() => runner.run(project, { mode, index: mode === 'single' ? selected : undefined, replace: replacing }));
+  }
+  $('generate-missing').addEventListener('click', () => startGeneration('missing'));
+  $('generate-segment').addEventListener('click', () => startGeneration('single'));
+  $('pause-generation').addEventListener('click', () => {
+    if (runner.running) { runner.requestPause(); $('pause-generation').disabled = true; return; }
+    if (confirm('停止另一页面的生成？已保存的分段保留，正在生成但尚未保存的这一段可能需要重做。')) {
+      action(async () => accept(await api(url('/generation/pause'), 'POST', { revision: project.revision })));
+    }
+  });
+  $('retry-save').addEventListener('click', () => action(() => runner.retrySave()));
+  $('discard-pending').addEventListener('click', () => {
+    if (busy || !runner.pending || !confirm('放弃这次尚未保存的结果？如需保留，请先下载备份。云端已经保存的音频不受影响。')) return;
+    runner.pending = null; pendingAudio(null); render();
+  });
   async function copy(text, input) {
     try { await navigator.clipboard.writeText(text); }
     catch {
@@ -199,10 +271,18 @@
     target: Number($('draft-target').value), voice: $('draft-voice').value, style: $('draft-style').value }; }
   function saveLocalDraft() {
     $('preview-result').hidden = true;
+    updateDraftCount();
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft())); $('draft-status').textContent = '输入已暂存本机；分段保存后，可跨设备继续。'; }
     catch { $('draft-status').textContent = '本机暂存不可用，请及时分段并保存任务。'; }
   }
-  $('new-project').addEventListener('click', () => { $('draft-status').classList.remove('error'); $('new-dialog').showModal(); });
+  function updateDraftCount() {
+    const size = count($('draft-text').value.trim());
+    $('draft-count').textContent = `${size.toLocaleString()} / 100,000 字`;
+    $('draft-text').setCustomValidity(size > 100000 ? '正文最多 100,000 字，请拆成多个任务' : '');
+  }
+  function openNew() { $('draft-status').classList.remove('error'); updateDraftCount(); $('new-dialog').showModal(); $('draft-title').focus(); }
+  $('new-project').addEventListener('click', openNew);
+  $('create-first').addEventListener('click', openNew);
   $('close-new').addEventListener('click', () => $('new-dialog').close());
   $('new-form').addEventListener('input', saveLocalDraft);
   $('preview-draft').addEventListener('click', async () => {
@@ -228,16 +308,18 @@
       selected = 1; accept(next); history.replaceState(null, '', `#${next.id}`);
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* not required for cloud progress */ }
       $('new-form').reset(); $('draft-style').value = config.defaultStyle; draftId = crypto.randomUUID();
-      $('preview-result').hidden = true; $('new-dialog').close(); notice('任务已保存。先复制朗读要求，再逐段生成和上传。');
+      $('preview-result').hidden = true; $('new-dialog').close(); notice('任务已保存。连接 Gemini 后可以自动生成；也可以使用免费网页手动生成。');
     } catch (e) { $('draft-status').textContent = e.message; $('draft-status').classList.add('error'); }
     finally { controls.forEach(el => { el.disabled = false; }); $('close-new').disabled = false; setBusy(false); }
   });
-  window.addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('beforeunload', event => { if (busy || runner.running || runner.pending) { event.preventDefault(); event.returnValue = ''; } });
   window.addEventListener('jtg:session-expired', () => { $('segment-audio').pause(); $('comparison-audio').pause(); });
   async function init() {
     setBusy(true);
     try {
       config = await api('/api/studio/config'); $('draft-style').value = config.defaultStyle;
+      try { const savedKey = sessionStorage.getItem(GEMINI_SESSION_KEY); if (savedKey) geminiKey = JtgGemini.key(savedKey); } catch {}
+      renderConnection();
       try {
         const saved = JSON.parse(localStorage.getItem(DRAFT_KEY));
         if (saved) {

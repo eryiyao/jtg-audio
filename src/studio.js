@@ -7,6 +7,7 @@ const express = require('express');
 const multer = require('multer');
 const { splitText, DEFAULT_STYLE } = require('./studio-text');
 const media = require('./studio-media');
+const { createGeneration, MODEL } = require('./studio-generation');
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.mp4', '.ogg', '.opus', '.aac', '.flac', '.webm']);
@@ -37,6 +38,7 @@ function createStudio(store, config, { streamFile }) {
       PRIMARY KEY (project_id, ordinal)
     );
   `);
+  const generation = createGeneration(db, config.studioNow || Date.now);
   const get = id => db.prepare('SELECT * FROM studio_projects WHERE id = ?').get(id);
   const segments = id => db.prepare('SELECT * FROM studio_segments WHERE project_id = ? ORDER BY ordinal').all(id);
   const directory = id => path.join(root, id);
@@ -74,7 +76,7 @@ function createStudio(store, config, { streamFile }) {
       revision: p.revision, status: p.status, error: p.error, episodeId: p.episode_id,
       createdAt: p.created_at, updatedAt: p.updated_at, total: all.length,
       uploaded: all.filter(s => s.audio_name).length, reviewed: all.filter(s => s.reviewed).length,
-      sizeBytes: all.reduce((sum, s) => sum + (s.size_bytes || 0), 0) };
+      sizeBytes: all.reduce((sum, s) => sum + (s.size_bytes || 0), 0), generation: generation.state(p.id) };
     if (detail) result.segments = all.map(s => ({ index: s.ordinal, text: s.text, copied: !!s.copied,
       reviewed: !!s.reviewed, durationSeconds: s.duration, sizeBytes: s.size_bytes,
       warnings: JSON.parse(s.warnings || '[]'),
@@ -87,10 +89,11 @@ function createStudio(store, config, { streamFile }) {
     if (!p) throw fail(404, '找不到这个制作任务');
     return p;
   }
-  function writable(req, p) {
+  function writable(req, p, automaticUpload = false) {
     const revision = req.is('multipart/form-data') ? Number(req.get('X-JTG-Revision')) : req.body?.revision;
     if (revision !== p.revision) throw fail(409, '进度已在其他页面更新，请重新载入后继续');
     if (locks.has(p.id) || p.status === 'merging') throw fail(409, '这个任务正在处理音频，请稍后再试');
+    if (generation.active(p.id) && !automaticUpload) throw fail(409, '这个任务正在自动生成，请先暂停后操作');
     if (p.status === 'complete' && p.episode_id) throw fail(409, '这个任务已入库；如需改稿或更换声音，请新建任务');
   }
   function segment(req, p) {
@@ -108,7 +111,7 @@ function createStudio(store, config, { streamFile }) {
 
   router.get('/config', (req, res) => res.json({ mediaReady: ready, defaultStyle: DEFAULT_STYLE,
     maxCharacters: 100000, maxUploadMb: Math.min(config.maxUploadMb, 100), maxSegmentMinutes: 20,
-    geminiUrl: 'https://aistudio.google.com/generate-speech' }));
+    geminiUrl: 'https://aistudio.google.com/generate-speech', generationModel: MODEL }));
   router.get('/projects', route((req, res) => {
     res.json(db.prepare('SELECT * FROM studio_projects ORDER BY updated_at DESC, id').all().map(p => view(p, false)));
   }));
@@ -142,7 +145,7 @@ function createStudio(store, config, { streamFile }) {
   router.get('/projects/:id', route((req, res) => res.json(view(project(req)))));
   router.delete('/projects/:id', route((req, res) => {
     const p = project(req);
-    if (req.body?.revision !== p.revision || locks.has(p.id) || p.status === 'merging') throw fail(409, '任务已更新或正在处理，请重新载入后再删除');
+    if (req.body?.revision !== p.revision || locks.has(p.id) || p.status === 'merging' || generation.active(p.id)) throw fail(409, '任务已更新或正在处理，请先暂停并重新载入后再删除');
     // Remove real draft files first. On failure retain the record and report it.
     fs.rmSync(directory(p.id), { recursive: true, force: true });
     db.prepare('DELETE FROM studio_projects WHERE id = ?').run(p.id);
@@ -176,7 +179,10 @@ function createStudio(store, config, { streamFile }) {
   }).single('audio');
 
   router.post('/projects/:id/segments/:index/audio', route(async (req, res) => {
-    const p = project(req); writable(req, p); const s = segment(req, p);
+    const p = project(req), token = req.get('X-JTG-Generation');
+    const s = segment(req, p);
+    if (token) generation.allowUpload(p.id, s.ordinal, token);
+    writable(req, p, !!token);
     if (!ready) throw fail(503, '音频处理组件尚未准备好，文字和进度仍可保存');
     if (processing) throw fail(409, '正在处理另一段音频，请稍后再上传');
     ensureSpace(config.dataDir, 512 * 1024 ** 2);
@@ -194,6 +200,8 @@ function createStudio(store, config, { streamFile }) {
       const used = db.prepare('SELECT coalesce(sum(size_bytes), 0) AS n FROM studio_segments WHERE project_id = ?').get(p.id).n;
       if (used - (s.size_bytes || 0) + checked.sizeBytes > 1024 ** 3) throw fail(413, '本任务的分段音频超过 1 GB，请拆成多个任务');
       transaction(() => {
+        if (token) generation.saved(p.id, s.ordinal, token);
+        else generation.clearReceipt(p.id);
         db.prepare('UPDATE studio_segments SET audio_name=?, duration=?, size_bytes=?, hash=?, warnings=?, reviewed=0 WHERE project_id=? AND ordinal=?')
           .run(name, checked.durationSeconds, checked.sizeBytes, checked.hash, JSON.stringify(checked.warnings), p.id, s.ordinal);
         db.prepare("UPDATE studio_projects SET status='draft', error=NULL WHERE id=?").run(p.id);
@@ -211,6 +219,37 @@ function createStudio(store, config, { streamFile }) {
       }
       processing = false; locks.delete(p.id);
     }
+  }));
+
+  router.post('/projects/:id/generation', route((req, res) => {
+    const p = project(req);
+    if (!ready) throw fail(503, '音频处理组件尚未准备好');
+    if (locks.has(p.id) || processing) throw fail(409, '正在检查或合并音频，请稍后开始生成');
+    ensureSpace(config.dataDir, 512 * 1024 ** 2);
+    generation.start(p, segments(p.id), req.body || {});
+    res.status(202).json(view(get(p.id)));
+  }));
+  router.post('/projects/:id/generation/heartbeat', route((req, res) => {
+    const p = project(req);
+    res.json(generation.heartbeat(p.id, req.get('X-JTG-Generation')));
+  }));
+  router.post('/projects/:id/generation/next', route((req, res) => {
+    const p = project(req);
+    res.json({ ...generation.next(p.id, req.get('X-JTG-Generation')), project: view(get(p.id)) });
+  }));
+  router.post('/projects/:id/generation/pause', route((req, res) => {
+    const p = project(req), token = req.get('X-JTG-Generation');
+    if (token) generation.owner(p.id, token);
+    else if (req.body?.revision !== p.revision) throw fail(409, '进度已更新，请刷新后再停止');
+    const reasons = {
+      quota: 'Google 的免费额度或速率限制已触发。已保存分段保留，请稍后继续，不会自动切换付费方案。',
+      connection: '连接中断。已保存的分段保留，请检查网络与 Gemini 连接后继续。',
+      access: 'Google 暂不允许此次调用，请检查密钥、项目权限和地区可用性。',
+      audio: '本段未通过音频检查或保存失败。已有音频保留，请检查后重试。',
+      stopped: '已暂停。已保存的分段保留，可以继续生成。',
+    };
+    generation.pause(p.id, reasons[req.body?.reason] || reasons.stopped);
+    res.json(view(get(p.id)));
   }));
 
   async function merge(p, all, pendingName) {
