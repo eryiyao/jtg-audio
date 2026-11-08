@@ -14,12 +14,12 @@ const { makeWav } = require('./wav');
 async function fixture(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jtg-studio-'));
   let app, server, base;
-  async function start() {
-    app = createApp({ dataDir: path.join(dir, 'data'), uploadDir: path.join(dir, 'uploads'), maxUploadMb: 2 });
+  async function start(legacyStudioEnabled = true) {
+    app = createApp({ dataDir: path.join(dir, 'data'), uploadDir: path.join(dir, 'uploads'), maxUploadMb: 2, legacyStudioEnabled });
     server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     base = `http://127.0.0.1:${server.address().port}`;
   }
-  async function stop() { await app.locals.studio.waitForIdle(); await new Promise(resolve => server.close(resolve)); app.locals.db.close(); }
+  async function stop() { await app.locals.studio?.waitForIdle(); await new Promise(resolve => server.close(resolve)); app.locals.db.close(); }
   const ctx = {
     dir, db: () => app.locals.db,
     request: (url, options) => fetch(base + url, options),
@@ -40,11 +40,31 @@ async function fixture(fn) {
       const result = await ctx.json(`/api/studio/projects/${p.id}/segments/${index}`, 'PATCH', { revision: p.revision, reviewed: true });
       assert.equal(result.status, 200); return result.body;
     },
-    async restart() { await stop(); await start(); },
+    async restart(enabled = true) { await stop(); await start(enabled); },
     async merged(id) { await app.locals.studio.waitForIdle(); return (await ctx.json(`/api/studio/projects/${id}`)).body; },
   };
   try { await start(); await fn(ctx); } finally { if (server?.listening) await stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 }
+
+test('listening mode retires studio routes without changing stored drafts or segment audio', async () => {
+  await fixture(async c => {
+    const p = (await c.upload(await c.create())).body;
+    const files = fs.readdirSync(path.join(c.dir, 'data/studio', p.id));
+    const bytes = fs.readFileSync(path.join(c.dir, 'data/studio', p.id, files[0]));
+    await c.restart(false);
+    const page = await c.request('/studio.html', { redirect: 'manual' });
+    assert.equal(page.status, 303); assert.equal(page.headers.get('location'), '/');
+    assert.ok(!(await (await c.request('/')).text()).includes('studio-entry'));
+    for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
+      assert.equal((await c.request(`/api/studio/projects/${p.id}`, { method })).status, 410);
+    }
+    assert.equal((await c.request(`/api/studio/projects/${p.id}/generation`, { method: 'POST' })).status, 410);
+    assert.equal((await c.request('/api/episodes')).status, 200);
+    assert.deepEqual(fs.readFileSync(path.join(c.dir, 'data/studio', p.id, files[0])), bytes);
+    await c.restart(true);
+    assert.deepEqual((await c.json(`/api/studio/projects/${p.id}`)).body, p);
+  });
+});
 
 test('splitting preserves Chinese, English, numbers, whitespace and emoji without losing text', () => {
   const source = ('这是一段有句号的正文。价格是 3.14 元。\n\nEnglish sentence. 😀\n').repeat(170);

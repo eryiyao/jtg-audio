@@ -10,3 +10,5 @@
 | `UPLOAD_DIR` | `./uploads` | 音频文件目录 |
 | `DATABASE_PATH` | `./data/jtg.sqlite` | SQLite 文件 |
 | `MAX_UPLOAD_MB` | `200` | 单个文件上限（MB），最大按 2048 封顶 |
+
+`LEGACY_STUDIO_ENABLED` 默认关闭。仅在复制数据的隔离恢复环境设置为 `1`，可临时访问历史制作模块；正常线上服务不要启用，详见[恢复说明](studio.md)。

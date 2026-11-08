@@ -47,7 +47,8 @@ function loadConfig(overrides = {}) {
   const secureCookies = overrides.secureCookies ?? (process.env.NODE_ENV === 'production' || publicOrigin?.startsWith('https://') || false);
   return { root, dataDir, uploadDir, dbPath, maxUploadMb, port, host, authPasswordFile,
     authUser: overrides.authUser || process.env.AUTH_USER || 'yao', publicOrigin, secureCookies, authNow: overrides.authNow,
-    studioNow: overrides.studioNow };
+    studioNow: overrides.studioNow,
+    legacyStudioEnabled: overrides.legacyStudioEnabled ?? (process.env.LEGACY_STUDIO_ENABLED === '1') };
 }
 
 function extensionOf(filename) {
@@ -131,9 +132,16 @@ function createApp(overrides = {}) {
   installAuth(app, store.db, config, sharing.guest);
   app.use('/api/episodes', sharing.owner);
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
-  const studio = createStudio(store, config, { streamFile });
-  app.locals.studio = studio;
-  app.use('/api/studio', express.json({ limit: '1mb' }), studio.router);
+  // Keep old drafts on disk; the listening site does not run generation jobs.
+  // Explicit opt-in is reserved for isolated recovery and legacy regression tests.
+  if (config.legacyStudioEnabled) {
+    const studio = createStudio(store, config, { streamFile });
+    app.locals.studio = studio;
+    app.use('/api/studio', express.json({ limit: '1mb' }), studio.router);
+  } else {
+    app.get('/studio.html', (req, res) => res.set('Cache-Control', 'no-store').redirect(303, '/'));
+    app.use('/api/studio', (req, res) => res.status(410).json({ error: '网页制作已停用，请生成音频后在音频库上传。原有制作草稿仍保留。' }));
+  }
 
   function sharedProgress(id) {
     // Until the first new-version playback, use the latest legacy browser save.

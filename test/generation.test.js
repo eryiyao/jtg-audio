@@ -17,7 +17,7 @@ async function fixture(fn) {
   let server, app, base, clock = Date.now();
   const ownRequests = [];
   async function start() {
-    app = createApp({ dataDir: path.join(dir, 'data'), uploadDir: path.join(dir, 'uploads'), studioNow: () => clock });
+    app = createApp({ dataDir: path.join(dir, 'data'), uploadDir: path.join(dir, 'uploads'), studioNow: () => clock, legacyStudioEnabled: true });
     server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     base = `http://127.0.0.1:${server.address().port}`;
   }
