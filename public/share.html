@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#F6F3ED">
+  <title>收听分享 · JTG Audio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="share-page">
+  <main class="share-wrap">
+    <section id="share-gate" class="login-card">
+      <div class="login-heading"><p class="eyebrow">音频分享</p><h1 id="gate-title">收听分享</h1><p id="gate-description">输入分享者提供的密码，即可收听。</p></div>
+      <form id="unlock-form" hidden>
+        <div class="password-field"><label class="field-label" for="guest-password">分享密码</label><input id="guest-password" type="password" required maxlength="64" autocomplete="current-password" autocapitalize="none" spellcheck="false"></div>
+        <button id="unlock-button" class="primary login-button" type="submit">解锁收听</button>
+      </form>
+      <p id="guest-error" class="status" role="status">正在检查分享…</p>
+    </section>
+    <section id="guest-content" hidden aria-label="分享的音频">
+      <p class="share-page-label">与你分享的音频</p>
+      <div class="player">
+        <div class="player-top">
+          <h1 id="guest-title" class="now-title"></h1>
+          <label class="speed-control"><span id="guest-speed-value">1×</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron"/></svg><select id="guest-speed" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+        </div>
+        <div class="scrub"><input id="guest-seek" type="range" aria-label="播放进度" min="0" max="100" step="0.1" value="0" disabled><div class="timestamps"><span id="guest-position">0:00</span><span id="guest-duration">0:00</span></div></div>
+        <div class="player-bottom"><div class="transport">
+          <button id="guest-back" class="skip-button" type="button" aria-label="后退15秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-back"/></svg></button>
+          <button id="guest-play" class="play-button" type="button" aria-label="播放" aria-pressed="false"><svg class="icon play-symbol" aria-hidden="true"><use href="/assets/icons.svg#play"/></svg><svg class="icon pause-symbol" aria-hidden="true"><use href="/assets/icons.svg#pause"/></svg></button>
+          <button id="guest-forward" class="skip-button" type="button" aria-label="前进15秒"><svg class="icon skip-icon" aria-hidden="true"><use href="/assets/icons.svg#skip-forward"/></svg></button>
+        </div></div>
+        <p id="guest-play-status" class="status" role="status"></p>
+      </div>
+      <p id="guest-expiry" class="share-page-expiry"></p>
+    </section>
+    <noscript><p>请开启 JavaScript 后收听。</p></noscript>
+  </main>
+  <audio id="guest-audio" preload="metadata" playsinline></audio>
+  <script src="/s/player.js"></script>
+</body>
+</html>

@@ -36,12 +36,13 @@ function verifyPassword(password, credential) {
   });
 }
 
-function installAuth(app, db, config) {
+function installAuth(app, db, config, publicRouter) {
   const publicDir = path.join(config.root, 'public');
   app.get('/healthz', (req, res) => res.set('Cache-Control', 'no-store').json({ ok: true }));
   if (!config.authPasswordFile) {
     if (process.env.NODE_ENV === 'production') throw new Error('Production requires an audio password file');
     app.get('/api/auth/session', (req, res) => res.json({ authenticated: true, enabled: false }));
+    if (publicRouter) app.use('/s', publicRouter);
     return;
   }
 
@@ -151,6 +152,8 @@ function installAuth(app, db, config) {
     if (value) remove.run(digest(value));
     res.clearCookie(cookieName, cookieOptions).status(204).end();
   });
+  // Guest access is confined to this router; the library gate still protects everything else.
+  if (publicRouter) app.use('/s', publicRouter);
   app.use((req, res, next) => {
     const current = session(req);
     if (!current) {

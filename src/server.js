@@ -7,6 +7,7 @@ const express = require('express');
 const multer = require('multer');
 const { openDatabase, toEpisode } = require('./db');
 const { installAuth } = require('./auth');
+const { createSharing } = require('./shares');
 
 const AUDIO_TYPES = {
   '.mp3': 'audio/mpeg',
@@ -122,7 +123,9 @@ function createApp(overrides = {}) {
   app.set('trust proxy', 'loopback');
 
   app.use(express.json({ limit: '32kb' }));
-  installAuth(app, store.db, config);
+  const sharing = createSharing(store, config, { resolveUpload, streamFile });
+  installAuth(app, store.db, config, sharing.guest);
+  app.use('/api/episodes', sharing.owner);
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
   function sharedProgress(id) {
@@ -357,7 +360,7 @@ function resolveUpload(uploadDir, storedName) {
   return full;
 }
 
-function streamFile(req, res, filePath, mimeType) {
+function streamFile(req, res, filePath, mimeType, allowed) {
   let size;
   try {
     size = fs.statSync(filePath).size;
@@ -373,7 +376,7 @@ function streamFile(req, res, filePath, mimeType) {
   const range = req.headers.range;
   if (!range) {
     res.setHeader('Content-Length', size);
-    pipeStream(req, res, fs.createReadStream(filePath));
+    pipeStream(req, res, fs.createReadStream(filePath), allowed);
     return;
   }
 
@@ -406,15 +409,20 @@ function streamFile(req, res, filePath, mimeType) {
   res.status(206);
   res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
   res.setHeader('Content-Length', end - start + 1);
-  pipeStream(req, res, fs.createReadStream(filePath, { start, end }));
+  pipeStream(req, res, fs.createReadStream(filePath, { start, end }), allowed);
 }
 
-function pipeStream(req, res, stream) {
+function pipeStream(req, res, stream, allowed) {
+  // Recheck open guest transfers as well as each new Range request.
+  const timer = allowed && setInterval(() => {
+    if (!allowed()) { stream.destroy(); res.destroy(); }
+  }, 1000);
+  if (timer) timer.unref();
   stream.on('error', () => {
     if (!res.headersSent) res.status(500).end();
     else res.destroy();
   });
-  const cleanup = () => stream.destroy();
+  const cleanup = () => { if (timer) clearInterval(timer); stream.destroy(); };
   res.on('close', cleanup);
   req.on('aborted', cleanup);
   stream.pipe(res);

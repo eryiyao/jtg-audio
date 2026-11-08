@@ -84,11 +84,32 @@
     <p class="sleep-help">仅当前页面生效，暂停期间继续计时。</p>
   </dialog>
 
+  <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-title">
+    <div class="dialog-heading"><h2 id="share-title">分享音频</h2><button id="close-share" class="icon-button" type="button" aria-label="关闭分享窗口"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button></div>
+    <p id="share-episode-title" class="share-episode-title"></p>
+    <form id="share-form" hidden>
+      <label><span class="field-label">链接有效期</span><select id="share-duration" class="share-input"><option value="24">24 小时</option><option value="168">7 天</option></select></label>
+      <label class="title-label">分享密码 <span>选填 · 至少 6 位</span><input id="share-password" type="text" minlength="6" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="留空则自动生成"></label>
+      <p class="share-help">仅分享这一条音频，输入密码后才能收听。</p>
+      <button id="create-share" class="primary submit-button" type="submit">生成分享链接</button>
+    </form>
+    <div id="share-result" hidden>
+      <p class="share-validity" id="share-expiry"></p>
+      <label class="title-label">分享链接<input id="share-url" type="text" readonly aria-label="分享链接"></label>
+      <div id="share-secret-row" class="share-secret" hidden><span>分享密码</span><strong id="share-secret"></strong></div>
+      <p id="share-secret-help" class="share-help"></p>
+      <button id="copy-share" class="primary submit-button" type="button">复制链接和密码</button>
+      <button id="revoke-share" class="share-revoke" type="button">撤销分享</button>
+    </div>
+    <p id="share-status" class="status" role="status"></p>
+  </dialog>
+
   <audio id="audio" preload="metadata" playsinline></audio>
   <noscript><p class="wrap">请开启 JavaScript 后再用。</p></noscript>
   <script src="/progress-sync.js"></script>
   <script src="/session.js"></script>
   <script src="/sleep-timer.js"></script>
+  <script src="/share-manager.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -242,7 +242,14 @@ function renderList() {
       listErrorEl.textContent = '删除失败，请检查网络后重试';
     }));
 
-    item.append(open, remove);
+    const share = document.createElement('button');
+    share.type = 'button';
+    share.className = 'share-button';
+    share.append(icon('share'));
+    share.setAttribute('aria-label', `分享音频：${ep.title}`);
+    share.title = '分享这条音频';
+    share.addEventListener('click', () => window.ShareManager.open(ep));
+    item.append(open, remove, share);
     listEl.append(item);
   }
 }
