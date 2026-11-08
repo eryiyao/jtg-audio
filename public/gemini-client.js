@@ -10,7 +10,9 @@
   function failure(reason, message, status) { return Object.assign(new Error(message), { reason, status }); }
   function key(value) {
     const result = String(value || '').trim();
-    if (!/^[A-Za-z0-9_-]{20,200}$/.test(result)) throw failure('access', '请填写有效的 Gemini API Key');
+    // AI Studio auth keys include a dot (AQ.*); keep the value opaque while
+    // rejecting URLs, pasted commands, whitespace and header separators.
+    if (!/^[A-Za-z0-9_.-]{20,200}$/.test(result)) throw failure('access', '请填写有效的 Gemini API Key');
     return result;
   }
   function body({ text, voice, style }) {

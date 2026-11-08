@@ -53,6 +53,19 @@ async function fixture(fn) {
 }
 const audioResponse = seconds => new Response(JSON.stringify({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'audio', mime_type: 'audio/wav', data: makeWav(seconds).toString('base64') }] }] }), { status: 200 });
 
+test('AI Studio authorization keys are accepted unchanged and unsafe pasted values are rejected', async () => {
+  const authKey = 'AQ.SyntheticFixtureNotARealAuthorizationKey123456';
+  let request;
+  await Gemini.connect(' ' + authKey + ' ', async (url, options) => {
+    request = { url, options }; return new Response('{}');
+  });
+  assert.equal(request.options.headers['x-goog-api-key'], authKey);
+  assert.ok(!request.url.includes(authKey));
+  for (const value of ['https://example.test/' + authKey, 'curl -H ' + authKey, authKey + '\r\nInjected: 1']) {
+    assert.throws(() => Gemini.key(value), /有效/);
+  }
+});
+
 test('official TTS request keeps verbatim text separate from style and never places secrets in URLs', async () => {
   const requests = [];
   const mock = async (url, options) => { requests.push({ url, options }); return url.endsWith('/interactions') ? audioResponse(2) : new Response('{}'); };
