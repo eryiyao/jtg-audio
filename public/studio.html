@@ -60,7 +60,7 @@
     <form id="new-form">
       <label class="title-label">文章标题<input id="draft-title" type="text" required maxlength="120" placeholder="给这篇音频起个名字"></label>
       <div class="draft-text-field"><div class="draft-text-heading"><label class="title-label" for="draft-text">朗读正文</label><span id="draft-count">0 / 100,000 字</span></div><textarea id="draft-text" required maxlength="200000" placeholder="粘贴准备朗读的完整正文，先去掉不需要读出的链接、批注和表格。" aria-describedby="draft-count"></textarea></div>
-      <div class="draft-options"><label>每段长度<select id="draft-target"><option value="800">约 800 字 · 更方便重做</option><option value="1000" selected>约 1,000 字 · 推荐</option><option value="1200">约 1,200 字</option></select></label><label>固定声音<select id="draft-voice"><option>Charon</option><option>Orus</option><option>Algenib</option></select></label></div>
+      <div class="draft-options"><div class="draft-option"><label id="draft-target-label" for="draft-target">每段长度</label><select id="draft-target"><option value="800">约 800 字 · 更方便重做</option><option value="1000" selected>约 1,000 字 · 推荐</option><option value="1200">约 1,200 字</option></select></div><div class="draft-option"><label id="draft-voice-label" for="draft-voice">固定声音</label><select id="draft-voice"><option>Charon</option><option>Orus</option><option>Algenib</option></select></div></div>
       <details class="draft-style"><summary>朗读要求</summary><textarea id="draft-style" maxlength="2000" required aria-label="固定朗读要求"></textarea><p class="muted">任务保存后固定正文和声音设置，避免各段用到不同版本。需要改稿时新建任务。</p></details>
       <div id="preview-result" class="preview-result" hidden></div>
       <p id="draft-status" class="muted">未提交的文字暂存在本机；分段保存后，可跨设备继续。</p>
@@ -73,15 +73,18 @@
     <form id="gemini-form" autocomplete="off">
       <label class="title-label">Gemini API Key<input id="gemini-key" type="password" required minlength="20" maxlength="200" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="粘贴免费项目的 API Key"></label>
       <label class="review-checkbox"><input id="confirm-free" type="checkbox" required><span>我确认这个密钥属于未启用结算的免费项目</span></label>
-      <label class="review-checkbox"><input id="remember-gemini" type="checkbox"><span>在本标签页记住连接，刷新后不用重填</span></label>
+      <label class="review-checkbox"><input id="remember-gemini" type="checkbox"><span>在这台设备上记住连接，刷新或下次打开不用重填</span></label>
+      <p class="connection-help">仅保存在这台设备的当前浏览器中，不会同步到其他设备。请只在自己的设备上勾选；清除本网站的数据后，需要重新连接。</p>
       <p class="connection-help">密钥只在当前浏览器使用，不保存到 JTG Audio 服务器。正文会发送给 Google，免费服务可能用于改进其产品。工具无法读取项目账单；请勿把该项目升级为付费项目。</p>
-      <div class="connection-actions"><button id="submit-gemini" class="primary" type="submit">检查并连接</button><button id="disconnect-gemini" type="button" hidden>断开连接</button></div>
+      <div class="connection-actions"><button id="submit-gemini" class="primary" type="submit">检查并连接</button><button id="disconnect-gemini" type="button" hidden>断开并清除此设备的密钥</button></div>
       <p id="connection-status" class="status" role="status"></p>
     </form>
   </dialog>
   <script src="/session.js"></script>
   <script src="/gemini-client.js"></script>
+  <script src="/gemini-connection.js"></script>
   <script src="/generation-runner.js"></script>
+  <script src="/studio-select.js"></script>
   <script src="/studio.js"></script>
 </body>
 </html>

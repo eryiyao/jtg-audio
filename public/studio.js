@@ -2,9 +2,10 @@
 (() => {
   const $ = id => document.getElementById(id);
   const DRAFT_KEY = 'jtg-studio-unsaved-v1';
-  const GEMINI_SESSION_KEY = 'jtg-gemini-tab-key-v1';
+  const connectionStore = JtgGeminiConnection.create({ device: () => localStorage, session: () => sessionStorage, validate: JtgGemini.key });
+  const draftSelects = ['draft-target', 'draft-voice'].map(id => JtgStudioSelect.enhance($(id)));
   let config, project, projects = [], selected = 1, busy = false, poll, generation = 0;
-  let geminiKey = '', pendingUrl = null;
+  let geminiKey = '', geminiRemembered = false, connectionVersion = 0, pendingUrl = null;
   let draftId = crypto.randomUUID();
   const count = text => Array.from(text).length;
   const duration = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
@@ -156,32 +157,56 @@
     onProject: accept, onStatus: message => { $('generation-status').textContent = message; }, onPending: pendingAudio,
     onFinish: () => { if (project) render(); } });
   function renderConnection() {
-    $('gemini-state').textContent = geminiKey ? '已连接 · 免费项目由你确认' : '未连接';
+    $('gemini-state').textContent = geminiKey ? (geminiRemembered ? '已连接 · 此设备已记住' : '已连接 · 仅本次打开') : '未连接';
     $('connect-gemini').textContent = geminiKey ? '连接设置' : '连接 Gemini';
     $('disconnect-gemini').hidden = !geminiKey;
   }
-  function openConnection() { $('gemini-key').value = ''; $('confirm-free').checked = false; $('connection-status').textContent = ''; renderConnection(); $('gemini-dialog').showModal(); $('gemini-key').focus(); }
+  function openConnection() {
+    $('gemini-key').value = ''; $('gemini-key').required = !geminiKey;
+    $('gemini-key').placeholder = geminiKey ? '已连接，留空即可沿用当前密钥' : '粘贴免费项目的 API Key';
+    $('confirm-free').checked = !!geminiKey; $('remember-gemini').checked = geminiRemembered;
+    $('submit-gemini').textContent = geminiKey ? '保存连接设置' : '检查并连接';
+    $('connection-status').textContent = ''; renderConnection(); $('gemini-dialog').showModal();
+    (geminiKey ? $('remember-gemini') : $('gemini-key')).focus();
+  }
   $('connect-gemini').addEventListener('click', openConnection);
   $('close-gemini').addEventListener('click', () => $('gemini-dialog').close());
   $('gemini-dialog').addEventListener('close', () => { $('gemini-key').value = ''; });
+  $('gemini-dialog').addEventListener('cancel', event => { if ($('submit-gemini').disabled) event.preventDefault(); });
+  $('gemini-key').addEventListener('input', () => { if ($('gemini-key').value.trim()) $('confirm-free').checked = false; });
   $('disconnect-gemini').addEventListener('click', () => {
-    geminiKey = ''; try { sessionStorage.removeItem(GEMINI_SESSION_KEY); } catch {}
-    renderConnection(); $('gemini-dialog').close(); notice('已断开 Gemini，云端的制作进度仍然保留。');
+    connectionVersion++;
+    geminiKey = ''; geminiRemembered = false;
+    const cleared = connectionStore.clear();
+    renderConnection(); $('gemini-dialog').close();
+    notice(cleared ? '已断开并清除此设备保存的密钥，云端制作进度保留。' : '本页已断开，但浏览器未允许清除保存的密钥。请在浏览器设置中清除此网站的数据。');
+  });
+  window.addEventListener('storage', event => {
+    if (event.key !== JtgGeminiConnection.DEVICE_KEY && event.key !== null) return;
+    connectionVersion++;
+    const saved = connectionStore.stored();
+    if (runner.running && saved !== geminiKey) runner.requestPause();
+    geminiKey = saved; geminiRemembered = !!saved;
+    if (!saved) { try { sessionStorage.removeItem(JtgGeminiConnection.LEGACY_KEY); } catch {} }
+    renderConnection();
+    notice(saved ? '此设备的 Gemini 连接已在另一页面更新。' : '此设备的 Gemini 连接已清除。已保存的制作进度保留。');
   });
   $('gemini-form').addEventListener('submit', async event => {
     event.preventDefault(); if ($('submit-gemini').disabled) return;
     $('submit-gemini').disabled = true; $('disconnect-gemini').disabled = true; $('close-gemini').disabled = true;
     $('connection-status').textContent = '正在检查与 Google 的连接，不会生成音频…';
-    const candidate = $('gemini-key').value.trim();
+    const candidate = $('gemini-key').value.trim() || geminiKey;
+    const version = ++connectionVersion;
     try {
       if (!$('confirm-free').checked) throw new Error('请先确认对应项目没有启用结算');
       await JtgGemini.connect(candidate);
+      if (version !== connectionVersion) throw new Error('连接设置已在另一页面更新，请重新确认后保存');
       geminiKey = candidate;
-      try {
-        if ($('remember-gemini').checked) sessionStorage.setItem(GEMINI_SESSION_KEY, geminiKey);
-        else sessionStorage.removeItem(GEMINI_SESSION_KEY);
-      } catch { notice('已连接。本标签页无法记住连接，刷新后需重新填写密钥。'); }
-      renderConnection(); $('gemini-dialog').close(); notice('Gemini 已连接，可以开始自动生成。免费额度不足时会暂停。');
+      const saved = connectionStore.save(geminiKey, $('remember-gemini').checked);
+      geminiRemembered = saved.remembered;
+      renderConnection(); $('gemini-dialog').close();
+      notice(saved.ok ? (geminiRemembered ? '此设备已记住 Gemini 连接，刷新或下次打开都不用重新填写。' : 'Gemini 已连接，仅本次打开有效；此设备不再保存密钥。')
+        : '已连接，但浏览器未能完整更新本机保存设置。请检查是否允许保存网站数据；如需彻底清除，请在浏览器中清除此网站数据。');
     } catch (e) { $('connection-status').textContent = e.message; }
     finally { $('gemini-key').value = ''; $('submit-gemini').disabled = false; $('disconnect-gemini').disabled = false; $('close-gemini').disabled = false; }
   });
@@ -280,7 +305,7 @@
     $('draft-count').textContent = `${size.toLocaleString()} / 100,000 字`;
     $('draft-text').setCustomValidity(size > 100000 ? '正文最多 100,000 字，请拆成多个任务' : '');
   }
-  function openNew() { $('draft-status').classList.remove('error'); updateDraftCount(); $('new-dialog').showModal(); $('draft-title').focus(); }
+  function openNew() { $('draft-status').classList.remove('error'); updateDraftCount(); draftSelects.forEach(sync => sync()); $('new-dialog').showModal(); $('draft-title').focus(); }
   $('new-project').addEventListener('click', openNew);
   $('create-first').addEventListener('click', openNew);
   $('close-new').addEventListener('click', () => $('new-dialog').close());
@@ -318,7 +343,7 @@
     setBusy(true);
     try {
       config = await api('/api/studio/config'); $('draft-style').value = config.defaultStyle;
-      try { const savedKey = sessionStorage.getItem(GEMINI_SESSION_KEY); if (savedKey) geminiKey = JtgGemini.key(savedKey); } catch {}
+      const restored = connectionStore.restore(); geminiKey = restored.key; geminiRemembered = restored.remembered;
       renderConnection();
       try {
         const saved = JSON.parse(localStorage.getItem(DRAFT_KEY));
