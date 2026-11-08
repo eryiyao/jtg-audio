@@ -81,7 +81,9 @@ test('anonymous access reaches only login assets; private APIs, audio and applic
     assert.equal((await request('/login')).status, 200);
     assert.equal((await request('/style.css')).status, 200);
     assert.equal((await request('/healthz')).status, 200);
-    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/sleep-timer.js', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
+    const studio = await request('/studio.html');
+    assert.equal(studio.status, 303); assert.equal(studio.headers.get('location'), '/login?next=studio');
+    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/session.js', '/sleep-timer.js', '/studio.js', '/api/studio/projects', '/api/studio/config', '/api/episodes/00000000-0000-0000-0000-000000000000/audio']) {
       const response = await request(url);
       assert.equal(response.status, 401, url);
       assert.equal(response.headers.get('www-authenticate'), null);
@@ -143,7 +145,7 @@ test('login rotates tokens; logout revokes only this device and rejects replay',
 test('cross-origin writes and HTML forms cannot login, upload, or logout', async () => {
   await fixture(async ({ login, request }) => {
     const { cookie } = await login();
-    for (const url of ['/api/auth/login', '/api/auth/logout', '/api/episodes']) {
+    for (const url of ['/api/auth/login', '/api/auth/logout', '/api/episodes', '/api/studio/projects', '/api/studio/preview']) {
       for (const headers of [{}, { 'X-JTG-Request': '1', Origin: 'https://other.example.test' }, { ...WRITE, 'Sec-Fetch-Site': 'cross-site' }]) {
         assert.equal((await request(url, { method: 'POST', headers: { Cookie: cookie, ...headers } })).status, 403);
       }

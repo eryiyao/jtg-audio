@@ -9,7 +9,7 @@ window.JtgSession = (() => {
       if (response.status === 401 && !leaving) {
         leaving = true;
         window.dispatchEvent(new Event('jtg:session-expired'));
-        location.replace('/login?expired=1');
+        location.replace('/login?expired=1' + (location.pathname === '/studio.html' ? '&next=studio' : ''));
       }
       return response;
     },

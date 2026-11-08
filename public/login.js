@@ -30,7 +30,7 @@ form.addEventListener('submit', async (event) => {
       throw new Error(data.error || '登录失败，请重试');
     }
     password.value = '';
-    location.replace('/');
+    location.replace(new URLSearchParams(location.search).get('next') === 'studio' ? '/studio.html' : '/');
   } catch (error) {
     status.textContent = error instanceof TypeError ? '网络暂时不可用，请稍后重试' : error.message;
     button.disabled = false;

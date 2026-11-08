@@ -105,7 +105,7 @@ function installAuth(app, db, config, publicRouter) {
   });
   app.use(rejectWrite);
   app.get('/login', (req, res) => {
-    if (session(req)) return res.redirect(303, '/');
+    if (session(req)) return res.redirect(303, req.query.next === 'studio' ? '/studio.html' : '/');
     res.sendFile(path.join(publicDir, 'login.html'));
   });
   for (const file of ['style.css', 'login.js', 'assets/icons.svg']) {
@@ -158,6 +158,7 @@ function installAuth(app, db, config, publicRouter) {
     const current = session(req);
     if (!current) {
       if (['GET', 'HEAD'].includes(req.method) && ['/', '/index.html'].includes(req.path)) return res.redirect(303, '/login');
+      if (['GET', 'HEAD'].includes(req.method) && req.path === '/studio.html') return res.redirect(303, '/login?next=studio');
       return res.status(401).json({ error: '登录已失效，请重新登录' });
     }
     res.locals.loginSession = current;

@@ -27,7 +27,7 @@ cd /opt/jtg-audio
 
 ### 首次安装
 
-使用已安装的 Node 22.5+、OpenSSL 3、Nginx、certbot 及支持 `LoadCredential` 的 systemd。确认 `/usr/bin/node` 是合适的版本，端口 4300 空闲。
+使用已安装的 Node 22.5+、OpenSSL 3、FFmpeg（含 ffprobe）、Nginx、certbot 及支持 `LoadCredential` 的 systemd。确认 `/usr/bin/node` 是合适的版本，端口 4300 空闲。Ubuntu 可使用 `sudo apt-get install --no-install-recommends ffmpeg` 安装音频处理组件；更新到文字制作版本前也需要安装，以便运行完整测试。缺少组件时，原有音频库和文字进度仍可使用，分段上传检查与合并会明确提示不可用。
 
 1. 将仓库 main 克隆到 `/opt/jtg-audio`，运行 `npm ci --omit=dev` 和 `npm test`。
 2. 建立无交互登录权限的专用系统用户 `jtg-audio`；数据目录属于该用户，ACME 目录供 Nginx 读取。

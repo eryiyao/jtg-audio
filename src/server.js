@@ -8,6 +8,7 @@ const multer = require('multer');
 const { openDatabase, toEpisode } = require('./db');
 const { installAuth } = require('./auth');
 const { createSharing } = require('./shares');
+const { createStudio } = require('./studio');
 
 const AUDIO_TYPES = {
   '.mp3': 'audio/mpeg',
@@ -122,11 +123,16 @@ function createApp(overrides = {}) {
   app.locals.config = config;
   app.set('trust proxy', 'loopback');
 
-  app.use(express.json({ limit: '32kb' }));
+  const smallJson = express.json({ limit: '32kb' });
+  // Large manuscript bodies are parsed only after owner authentication.
+  app.use((req, res, next) => req.path.startsWith('/api/studio/') ? next() : smallJson(req, res, next));
   const sharing = createSharing(store, config, { resolveUpload, streamFile });
   installAuth(app, store.db, config, sharing.guest);
   app.use('/api/episodes', sharing.owner);
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+  const studio = createStudio(store, config, { streamFile });
+  app.locals.studio = studio;
+  app.use('/api/studio', express.json({ limit: '1mb' }), studio.router);
 
   function sharedProgress(id) {
     // Until the first new-version playback, use the latest legacy browser save.
@@ -322,6 +328,10 @@ function createApp(overrides = {}) {
   app.use((err, req, res, next) => {
     if (res.headersSent) {
       next(err);
+      return;
+    }
+    if (err?.type === 'entity.too.large' || err?.type === 'entity.parse.failed') {
+      res.status(err.type === 'entity.too.large' ? 413 : 400).json({ error: err.type === 'entity.too.large' ? '提交内容太长，请拆短后重试' : '提交内容格式无效，请重新载入后重试' });
       return;
     }
     if (err && err.code === 'LIMIT_FILE_SIZE') {

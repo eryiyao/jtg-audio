@@ -88,7 +88,8 @@ test('share password unlocks only its audio, never the private library or owner 
     assert.match(audio.headers.get('cache-control'), /no-store/);
     assert.equal((await ctx.request(meta.audioUrl, { method: 'HEAD', headers })).status, 200);
     assert.equal((await ctx.request(other.share.path + '/audio', { headers })).status, 401);
-    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/share-manager.js', `/api/episodes/${a}/audio`, `/api/episodes/${b}/audio`, `/api/episodes/${a}/share`, `/api/shared-progress/${a}`]) {
+    assert.equal((await ctx.request('/studio.html', { headers })).status, 303);
+    for (const url of ['/api/episodes', '/api/auth/session', '/app.js', '/share-manager.js', '/api/studio/projects', '/api/studio/config', `/api/episodes/${a}/audio`, `/api/episodes/${b}/audio`, `/api/episodes/${a}/share`, `/api/shared-progress/${a}`]) {
       assert.equal((await ctx.request(url, { headers })).status, 401, url);
     }
     for (const [url, method] of [[`/api/episodes/${a}`, 'DELETE'], [`/api/shared-progress/${a}`, 'PUT'], [`/api/episodes/${a}/share`, 'POST'], [`/api/episodes/${a}/share/${share.id}`, 'DELETE']]) {
